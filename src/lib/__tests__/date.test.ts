@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   formatDateStr,
   parseDateStr,
+  parseGermanDateStr,
   addDays,
   getWeekStart,
   getWeekDates,
@@ -168,5 +169,48 @@ describe('parseDateStr invalid input', () => {
 
   it('returns Invalid Date for non-numeric string', () => {
     expect(isNaN(parseDateStr('abcdefgh').getTime())).toBe(true);
+  });
+});
+
+describe('parseGermanDateStr', () => {
+  it('parses D.M.YYYY', () => {
+    expect(parseGermanDateStr('16.6.2026')).toBe('20260616');
+  });
+
+  it('parses zero-padded D.M.YYYY', () => {
+    expect(parseGermanDateStr('16.06.2026')).toBe('20260616');
+  });
+
+  it('parses D.M.YY with a 2-digit year', () => {
+    expect(parseGermanDateStr('16.6.26')).toBe('20260616');
+  });
+
+  it('parses single-digit day and month', () => {
+    expect(parseGermanDateStr('1.1.26')).toBe('20260101');
+  });
+
+  it('returns null for day 31 in a 30-day month', () => {
+    expect(parseGermanDateStr('31.4.2026')).toBeNull();
+  });
+
+  it('returns null for month > 12', () => {
+    expect(parseGermanDateStr('15.13.2026')).toBeNull();
+  });
+
+  it('returns null for day > 31', () => {
+    expect(parseGermanDateStr('32.1.2026')).toBeNull();
+  });
+
+  it('returns null for day or month 0', () => {
+    expect(parseGermanDateStr('0.1.2026')).toBeNull();
+    expect(parseGermanDateStr('1.0.2026')).toBeNull();
+  });
+
+  it('returns null for non-numeric input', () => {
+    expect(parseGermanDateStr('abc')).toBeNull();
+  });
+
+  it('returns null for ISO format', () => {
+    expect(parseGermanDateStr('2026-06-16')).toBeNull();
   });
 });
