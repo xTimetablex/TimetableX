@@ -183,10 +183,7 @@ two optional fields are added to the day object:
         }
       ]
     },
-    { "date": "...", "dateStr": "...", "entries": [] },
-    { "date": "...", "dateStr": "...", "entries": [] },
-    { "date": "...", "dateStr": "...", "entries": [] },
-    { "date": "...", "dateStr": "...", "entries": [] }
+    { "...": "4 more day objects, same shape" }
   ]
 }
 ```
@@ -195,6 +192,11 @@ two optional fields are added to the day object:
 `date`, or the current week if `date` is omitted). Each day object has the
 same shape as the day view (`date`, `dateStr`, `entries`, and optional
 `dayNotes`/`isWeekend`).
+
+With real credentials, each day reflects that date's actual timetable data.
+**In demo mode** (`sample`/`demo`), the 5 `days` entries are all identical —
+the sample data is a single fixed day, returned regardless of the requested
+date.
 
 ### Week view, unfiltered
 
