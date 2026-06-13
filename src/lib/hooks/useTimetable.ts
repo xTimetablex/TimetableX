@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AuthIdentity,
   FilterMode,
-  TimetableEntry,
   TimetableResponse,
   ViewMode,
 } from '@/lib/types';
 import { useBlacklist } from './useBlacklist';
 import { track } from '@/lib/analytics';
+import { filterEntries } from '@/lib/filterEntries';
+
+export { filterEntries };
 
 const FETCH_KEY = 'timetable';
 
@@ -31,28 +33,6 @@ export function computeIsSelectionAvailable(
 ): boolean {
   if (!selectedValue || !data) return true;
   return getAvailableValues(data, filterMode).includes(selectedValue);
-}
-
-export function filterEntries(
-  entries: TimetableEntry[],
-  filterMode: FilterMode,
-  selectedValue: string,
-  blacklist: string[]
-): TimetableEntry[] {
-  if (!selectedValue) return [];
-
-  const filtered = entries.filter(e => {
-    let isMatch = false;
-    if (filterMode === 'class') isMatch = e.class === selectedValue;
-    else if (filterMode === 'room') isMatch = e.room === selectedValue;
-    else if (filterMode === 'teacher') isMatch = e.teacher === selectedValue;
-
-    if (!isMatch) return false;
-    if (blacklist.includes(e.subject)) return false;
-    return true;
-  });
-
-  return [...filtered].sort((a, b) => (parseInt(a.hour) || 0) - (parseInt(b.hour) || 0));
 }
 
 export function useTimetable(

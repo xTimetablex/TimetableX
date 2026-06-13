@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { parseGermanDateStr } from '@/lib/date';
-import { filterEntries } from '@/lib/hooks/useTimetable';
+import { filterEntries } from '@/lib/filterEntries';
 import { parseBasicAuth, unauthorizedResponse } from '@/lib/server/publicAuth';
 import { fetchStundenplan, fetchWeekStundenplan } from '@/lib/stundenplan';
 import { FilterMode, TimetableData } from '@/lib/types';
