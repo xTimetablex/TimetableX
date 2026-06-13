@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'TimetableX',
     short_name: 'TimetableX',
     description: 'The better version of VPMobil24',
-    start_url: '/',
+    start_url: '/app',
     scope: '/',
     id: '/',
     display: 'standalone',
