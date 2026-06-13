@@ -28,7 +28,7 @@ export default function LegalDocument({ title, subtitle, children }: LegalDocume
             </div>
 
             <Link
-              href="/"
+              href="/app"
               className="btn btn-outline shrink-0 rounded-full px-4 py-2 text-sm"
             >
               Zur Startseite

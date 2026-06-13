@@ -32,7 +32,7 @@ interface ClientViewerProps {
 }
 
 function pushDate(router: ReturnType<typeof useRouter>, dateStr: string, viewMode: ViewMode) {
-  router.push(`/?date=${dateStr}&view=${viewMode}&step=timetable`);
+  router.push(`/app?date=${dateStr}&view=${viewMode}&step=timetable`);
 }
 
 function getDayOffsetDate(dateStr: string | undefined, offset: number): string {
@@ -55,7 +55,7 @@ function pushStep(router: ReturnType<typeof useRouter>, step: 'selection' | 'tim
   if (dateStr) params.set('date', dateStr);
   if (viewMode) params.set('view', viewMode);
   if (step === 'timetable') params.set('step', 'timetable');
-  router.push(`/?${params.toString()}`);
+  router.push(`/app?${params.toString()}`);
 }
 
 const selectionModeLabel: Record<FilterMode, string> = {
