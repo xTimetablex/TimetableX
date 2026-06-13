@@ -14,6 +14,27 @@ export function parseDateStr(dateStr: string): Date {
   return new Date(y, m, d);
 }
 
+const GERMAN_DATE_RE = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/;
+
+export function parseGermanDateStr(input: string): string | null {
+  const match = GERMAN_DATE_RE.exec(input.trim());
+  if (!match) return null;
+
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  let year = parseInt(match[3], 10);
+  if (match[3].length === 2) year += 2000;
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  return formatDateStr(date);
+}
+
 export function getTodayStr(): string {
   return formatDateStr(new Date());
 }

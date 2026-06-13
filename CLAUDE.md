@@ -21,7 +21,7 @@ Tests live in `src/lib/__tests__/` and run with Vitest (config: `vitest.config.t
 
 - **`date.test.ts`** — Tests six pure date utilities from `src/lib/date.ts`: `formatDateStr` (Date → `YYYYMMDD`, zero-padded), `parseDateStr` (inverse, round-trips), `addDays` (positive/negative, crosses month boundaries, non-mutating), `getWeekStart` (returns the preceding Monday), `getWeekDates` (5 consecutive Mon–Fri dates), `formatWeekLabel` (German "Woche vom D.M - D.M", including cross-month).
 
-- **`filterEntries.test.ts`** — Tests the exported `filterEntries` function from `src/lib/hooks/useTimetable.ts`: filtering by `class`, `teacher`, or `room`; empty filter value returns `[]`; results sorted by hour ascending; blacklist excludes one or multiple subjects.
+- **`filterEntries.test.ts`** — Tests the exported `filterEntries` function from `src/lib/filterEntries.ts` (re-exported from `src/lib/hooks/useTimetable.ts` for backwards compatibility): filtering by `class`, `teacher`, or `room`; empty filter value returns `[]`; results sorted by hour ascending; blacklist excludes one or multiple subjects.
 
 ## Architecture
 
