@@ -27,7 +27,7 @@ function hasChangeFlag(val: any, attrName: string): boolean {
   return false;
 }
 
-export const SAMPLE_DATA: TimetableData = {
+const SAMPLE_DATA: TimetableData = {
   title: 'Beispiel Stundenplan',
   date: 'Montag, 30. März 2026 (Beispieldaten)',
   entries: [

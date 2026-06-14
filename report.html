@@ -1,0 +1,43 @@
+<!-- react-doctor-thread:full -->
+<h3>🟡 React Doctor — Full Repository Scan — Score: 73 / 100 — Needs work</h3>
+
+<p>⚠️ <strong>21</strong> warnings</p>
+
+<details>
+<summary>📋 View details</summary>
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>Rule</th>
+      <th>Message</th>
+      <th>Location</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>⚠️</td><td><code>react-doctor/query-no-usequery-for-mutation</code></td><td>useQuery() with a mutating fetch (POST/PUT/DELETE) — use useMutation() instead, which provides onSuccess/onError callbacks and doesn't auto-refetch</td><td><code>src/lib/hooks/useTimetable.ts:57</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/no-effect-event-handler</code></td><td>useEffect simulating an event handler — move logic to an actual event handler instead</td><td><code>src/lib/hooks/useTimetable.ts:81</code></td></tr>
+    <tr><td>⚠️</td><td><code>jsx-a11y/click-events-have-key-events</code></td><td>Enforce a clickable non-interactive element has at least one keyboard event listener.</td><td><code>src/components/BlacklistModal.tsx:66</code></td></tr>
+    <tr><td>⚠️</td><td><code>jsx-a11y/no-static-element-interactions</code></td><td>Static HTML elements with event handlers require a role.</td><td><code>src/components/BlacklistModal.tsx:66</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/query-no-usequery-for-mutation</code></td><td>useQuery() with a mutating fetch (POST/PUT/DELETE) — use useMutation() instead, which provides onSuccess/onError callbacks and doesn't auto-refetch</td><td><code>src/lib/hooks/useAvailableSubjects.ts:11</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/no-fetch-in-effect</code></td><td>fetch() inside useEffect — use a data fetching library (react-query, SWR) or server component</td><td><code>src/lib/hooks/useAuth.ts:13</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/no-cascading-set-state</code></td><td>8 setState calls in a single useEffect — consider using useReducer or deriving state</td><td><code>src/lib/hooks/useAuth.ts:13</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/async-defer-await</code></td><td>await blocks the function before an early-return that doesn't use the awaited value — move the await after the synchronous guard so the skip path stays fast</td><td><code>src/lib/hooks/useAuth.ts:17</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/no-giant-component</code></td><td>Component "ClientViewer" is 334 lines — consider breaking it into smaller focused components</td><td><code>src/components/ClientViewer.tsx:67</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/design-no-bold-heading</code></td><td>font-bold on <h2> crushes counter shapes at display sizes — use font-semibold (600) or font-medium (500)</td><td><code>src/components/LandingShowcase.tsx:16</code></td></tr>
+    <tr><td>⚠️</td><td><code>jsx-a11y/click-events-have-key-events</code></td><td>Enforce a clickable non-interactive element has at least one keyboard event listener.</td><td><code>src/components/CommandPalette.tsx:127</code></td></tr>
+    <tr><td>⚠️</td><td><code>jsx-a11y/no-static-element-interactions</code></td><td>Static HTML elements with event handlers require a role.</td><td><code>src/components/CommandPalette.tsx:127</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/no-cascading-set-state</code></td><td>3 setState calls in a single useEffect — consider using useReducer or deriving state</td><td><code>src/components/CommandPalette.tsx:40</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/no-effect-event-handler</code></td><td>useEffect simulating an event handler — move logic to an actual event handler instead</td><td><code>src/components/CommandPalette.tsx:40</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/design-no-redundant-size-axes</code></td><td>w-4 h-4 → use the shorthand size-4 (Tailwind v3.4+)</td><td><code>src/components/LandingTimetablePreview.tsx:23</code></td></tr>
+    <tr><td>⚠️</td><td><code>react/no-danger</code></td><td>Do not use `dangerouslySetInnerHTML` prop</td><td><code>src/app/layout.tsx:42</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/design-no-bold-heading</code></td><td>font-bold on <h2> crushes counter shapes at display sizes — use font-semibold (600) or font-medium (500)</td><td><code>src/components/LandingFeatures.tsx:46</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/design-no-redundant-size-axes</code></td><td>w-10 h-10 → use the shorthand size-10 (Tailwind v3.4+)</td><td><code>src/components/LandingFeatures.tsx:61</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/design-no-redundant-size-axes</code></td><td>w-5 h-5 → use the shorthand size-5 (Tailwind v3.4+)</td><td><code>src/components/LandingFeatures.tsx:67</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/design-no-bold-heading</code></td><td>font-bold on <h1> crushes counter shapes at display sizes — use font-semibold (600) or font-medium (500)</td><td><code>src/components/LandingHero.tsx:20</code></td></tr>
+    <tr><td>⚠️</td><td><code>react-doctor/async-await-in-loop</code></td><td>await inside a for-loop runs the calls sequentially — for independent operations, collect them and use `await Promise.all(items.map(...))` to run them concurrently</td><td><code>src/app/api/subjects/route.ts:38</code></td></tr>
+  </tbody>
+</table>
+
+</details>

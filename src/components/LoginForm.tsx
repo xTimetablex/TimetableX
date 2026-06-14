@@ -39,7 +39,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
             />
           </div>
           <h1
-            className="text-2xl font-bold tracking-tight mb-1 display"
+            className="text-2xl font-semibold tracking-tight mb-1 display"
             style={{ color: 'var(--color-text)' }}
           >
             TimetableX
@@ -57,7 +57,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
               className="flex items-center gap-2 text-sm font-medium"
               style={{ color: 'var(--color-text)' }}
             >
-              <School className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <School className="size-4" style={{ color: 'var(--color-primary)' }} />
               Schulnummer
             </label>
             <input
@@ -67,7 +67,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
               autoComplete="organization"
               placeholder="z.B. 12345678"
               value={input.school}
-              onChange={e => setInput({ ...input, school: e.target.value })}
+              onChange={e => setInput(prev => ({ ...prev, school: e.target.value }))}
               className="input-field"
             />
           </div>
@@ -79,7 +79,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
               className="flex items-center gap-2 text-sm font-medium"
               style={{ color: 'var(--color-text)' }}
             >
-              <User className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <User className="size-4" style={{ color: 'var(--color-primary)' }} />
               Benutzername
             </label>
             <input
@@ -89,7 +89,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
               autoComplete="username"
               placeholder="Benutzername"
               value={input.user}
-              onChange={e => setInput({ ...input, user: e.target.value })}
+              onChange={e => setInput(prev => ({ ...prev, user: e.target.value }))}
               className="input-field"
             />
           </div>
@@ -101,7 +101,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
               className="flex items-center gap-2 text-sm font-medium"
               style={{ color: 'var(--color-text)' }}
             >
-              <Lock className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+              <Lock className="size-4" style={{ color: 'var(--color-primary)' }} />
               Passwort
             </label>
             <input
@@ -111,7 +111,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
               autoComplete="current-password"
               placeholder="••••••••"
               value={input.pass}
-              onChange={e => setInput({ ...input, pass: e.target.value })}
+              onChange={e => setInput(prev => ({ ...prev, pass: e.target.value }))}
               className="input-field"
             />
           </div>
@@ -122,7 +122,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
             style={{ padding: '0.9375rem 1.5rem', marginTop: '0.5rem' }}
           >
             Anmelden
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="size-4" />
           </Button>
         </form>
       </div>

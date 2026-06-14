@@ -31,7 +31,13 @@
       "mcp__serena__initial_instructions",
       "mcp__serena__get_symbols_overview",
       "mcp__serena__find_symbol",
-      "mcp__headroom__headroom_retrieve"
+      "mcp__headroom__headroom_retrieve",
+      "Bash(/home/me/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh *)",
+      "Bash(/home/me/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/stop-server.sh /home/me/Projects/JS_TS/TimetableX/.superpowers/brainstorm/446079-1781370895)",
+      "Bash(npm view *)",
+      "Bash(bun add *)",
+      "Bash(rtk bun *)",
+      "Bash(rtk head *)"
     ]
   }
 }

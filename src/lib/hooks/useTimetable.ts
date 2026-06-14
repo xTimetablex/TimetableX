@@ -16,7 +16,7 @@ export { filterEntries };
 
 const FETCH_KEY = 'timetable';
 
-export function getAvailableValues(
+function getAvailableValues(
   data: TimetableResponse | undefined,
   filterMode: FilterMode
 ): string[] {

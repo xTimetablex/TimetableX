@@ -1,5 +1,11 @@
+import type { Metadata } from 'next';
 import ClientViewer from '@/components/ClientViewer';
 import { ViewMode } from '@/lib/types';
+
+export const metadata: Metadata = {
+  title: 'Stundenplan – TimetableX',
+  description: 'Dein Vertretungsplan auf einen Blick.',
+};
 
 interface PageProps {
   searchParams: Promise<{ date?: string; view?: string; step?: string }>;

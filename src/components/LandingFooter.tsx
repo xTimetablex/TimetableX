@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 
 export default function LandingFooter() {
   return (
-    <motion.footer
+    <m.footer
       className="mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-3 px-4 py-8 text-sm sm:flex-row sm:px-6 lg:px-8"
       style={{ color: 'var(--color-text-muted)' }}
       initial={{ opacity: 0 }}
@@ -22,6 +22,6 @@ export default function LandingFooter() {
           Impressum
         </Link>
       </nav>
-    </motion.footer>
+    </m.footer>
   );
 }

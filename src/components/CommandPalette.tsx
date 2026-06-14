@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useEffectEvent, useRef, useMemo } from 'react';
 import { Search, Users, MapPin, User, X } from 'lucide-react';
 import { SearchItem } from '@/lib/types';
 import { Button } from './button';
@@ -41,7 +41,8 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
     if (isOpen) {
       setSearch('');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 10);
+      const id = setTimeout(() => inputRef.current?.focus(), 10);
+      return () => clearTimeout(id);
     }
   }, [isOpen]);
 
@@ -62,12 +63,13 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
       .slice(0, 15);
   }, [items, search]);
 
-  useEffect(() => { setSelectedIndex(0); }, [search]);
+  const onSelectEvent = useEffectEvent(onSelect);
+  const onCloseEvent = useEffectEvent(onClose);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
-      if (e.key === 'Escape') { onClose(); }
+      if (e.key === 'Escape') { onCloseEvent(); }
       else if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedIndex(prev => (prev + 1) % Math.max(1, filteredItems.length));
@@ -76,12 +78,12 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
         setSelectedIndex(prev => (prev - 1 + filteredItems.length) % Math.max(1, filteredItems.length));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (filteredItems[selectedIndex]) { onSelect(filteredItems[selectedIndex]); onClose(); }
+        if (filteredItems[selectedIndex]) { onSelectEvent(filteredItems[selectedIndex]); onCloseEvent(); }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filteredItems, selectedIndex, onSelect, onClose]);
+  }, [isOpen, filteredItems, selectedIndex]);
 
   useEffect(() => {
     const el = document.getElementById(`palette-item-${selectedIndex}`);
@@ -129,7 +131,7 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid var(--color-border)' }}>
           <Search
-            className="w-5 h-5 flex-shrink-0"
+            className="size-5 flex-shrink-0"
             style={{ color: 'var(--color-primary)' }}
             strokeWidth={2}
           />
@@ -140,7 +142,10 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
             aria-label="Suche"
             className="flex-1 bg-transparent border-none outline-none palette-input"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => {
+              setSearch(e.target.value);
+              setSelectedIndex(0);
+            }}
           />
           <Button
             onClick={onClose}
@@ -148,7 +153,7 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
             variant="icon"
             style={{ width: 44, height: 44 }}
           >
-            <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <X className="size-3.5" strokeWidth={2.5} />
           </Button>
         </div>
 
@@ -236,7 +241,7 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
                   color: 'var(--color-text-muted)',
                 }}
               >
-                <Search className="w-5 h-5" strokeWidth={1.75} />
+                <Search className="size-5" strokeWidth={1.75} />
               </div>
               <div className="text-center">
                 {search.trim().length === 0 ? (

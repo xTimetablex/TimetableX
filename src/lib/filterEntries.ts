@@ -19,5 +19,5 @@ export function filterEntries(
     return true;
   });
 
-  return [...filtered].sort((a, b) => (parseInt(a.hour) || 0) - (parseInt(b.hour) || 0));
+  return filtered.toSorted((a, b) => (parseInt(a.hour) || 0) - (parseInt(b.hour) || 0));
 }

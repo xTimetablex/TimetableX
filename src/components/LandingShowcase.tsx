@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 
 import { springPop, staggerContainer } from '@/lib/motionVariants';
 import {
@@ -24,7 +24,7 @@ export default function LandingShowcase() {
           className="panel mt-10 w-full max-w-md overflow-hidden"
           style={{ transform: 'rotate(1.5deg)' }}
         >
-          <motion.div
+          <m.div
             variants={staggerContainer}
             initial="hidden"
             whileInView="visible"
@@ -33,15 +33,15 @@ export default function LandingShowcase() {
             <LandingTimetableHeader />
             <div>
               {MOCK_TIMETABLE_ENTRIES.map((entry, i) => (
-                <motion.div key={entry.hour} variants={springPop}>
+                <m.div key={entry.hour} variants={springPop}>
                   <LandingTimetableRow
                     entry={entry}
                     isLast={i === MOCK_TIMETABLE_ENTRIES.length - 1}
                   />
-                </motion.div>
+                </m.div>
               ))}
             </div>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>

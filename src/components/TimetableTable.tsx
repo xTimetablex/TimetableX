@@ -53,7 +53,7 @@ export default function TimetableTable({ entries, showClassColumn, compact = fal
             color: 'var(--color-primary)',
           }}
         >
-          <CheckCircle2 className="w-7 h-7" strokeWidth={1.75} />
+          <CheckCircle2 className="size-7" strokeWidth={1.75} />
         </div>
         <div className="text-center">
           <p className="text-base font-semibold" style={{ color: 'var(--color-text)' }}>
@@ -75,7 +75,6 @@ export default function TimetableTable({ entries, showClassColumn, compact = fal
           borderCollapse: 'collapse',
           tableLayout: compact ? 'fixed' : 'auto',
         }}
-        role="table"
         aria-label="Vertretungsplan"
       >
         {/* Accessible column headers (visually hidden) */}
@@ -105,7 +104,7 @@ export default function TimetableTable({ entries, showClassColumn, compact = fal
 
             return (
               <tr
-                key={i}
+                key={`${e.hour}-${e.subject}-${e.room}-${e.teacher}`}
                 className={`table-row ${cancelled ? 'cancelled' : ''}`}
                 style={{
                   borderBottom: isLast ? 'none' : `1px solid ${cancelled ? 'var(--color-danger-border)' : 'var(--color-border-subtle)'}`,
@@ -134,7 +133,7 @@ export default function TimetableTable({ entries, showClassColumn, compact = fal
                   <div className="flex items-center gap-2">
                     {cancelled && (
                       <XCircle
-                        className="w-4 h-4 flex-shrink-0"
+                        className="size-4 flex-shrink-0"
                         style={{ color: 'var(--color-danger)' }}
                         strokeWidth={2}
                         aria-label="Ausfall"
