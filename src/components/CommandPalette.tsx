@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useEffectEvent, useRef, useMemo } from 'react';
 import { Search, Users, MapPin, User, X } from 'lucide-react';
 import { SearchItem } from '@/lib/types';
 import { Button } from './button';
@@ -24,24 +24,33 @@ const typeLabelPlural: Record<SearchItem['type'], string> = {
   teacher: 'Lehrer',
 };
 
+const TYPE_ICON_PROPS = { className: 'w-4 h-4', strokeWidth: 1.75 as number };
+
 const TypeIcon = ({ type }: { type: SearchItem['type'] }) => {
-  const props = { className: 'w-4 h-4', strokeWidth: 1.75 as number };
-  if (type === 'class') return <Users {...props} />;
-  if (type === 'room') return <MapPin {...props} />;
-  return <User {...props} />;
+  if (type === 'class') return <Users {...TYPE_ICON_PROPS} />;
+  if (type === 'room') return <MapPin {...TYPE_ICON_PROPS} />;
+  return <User {...TYPE_ICON_PROPS} />;
 };
 
 export default function CommandPalette({ isOpen, onClose, onSelect, items }: CommandPaletteProps) {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setSearch('');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 10);
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      const id = setTimeout(() => inputRef.current?.focus(), 10);
+      return () => clearTimeout(id);
     }
   }, [isOpen]);
 
@@ -62,29 +71,11 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
       .slice(0, 15);
   }, [items, search]);
 
-  useEffect(() => { setSelectedIndex(0); }, [search]);
+  const onSelectEvent = useEffectEvent(onSelect);
+  const onCloseEvent = useEffectEvent(onClose);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-      if (e.key === 'Escape') { onClose(); }
-      else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex(prev => (prev + 1) % Math.max(1, filteredItems.length));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex(prev => (prev - 1 + filteredItems.length) % Math.max(1, filteredItems.length));
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (filteredItems[selectedIndex]) { onSelect(filteredItems[selectedIndex]); onClose(); }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filteredItems, selectedIndex, onSelect, onClose]);
-
-  useEffect(() => {
-    const el = document.getElementById(`palette-item-${selectedIndex}`);
+  const scrollItemIntoView = (index: number) => {
+    const el = document.getElementById(`palette-item-${index}`);
     if (el && scrollRef.current) {
       const c = scrollRef.current;
       const top = el.offsetTop;
@@ -92,7 +83,30 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
       if (top < c.scrollTop) c.scrollTop = top - 8;
       else if (top + h > c.scrollTop + c.offsetHeight) c.scrollTop = top + h - c.offsetHeight + 8;
     }
-  }, [selectedIndex]);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+      if (e.key === 'Escape') { onCloseEvent(); }
+      else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = (selectedIndex + 1) % Math.max(1, filteredItems.length);
+        setSelectedIndex(next);
+        scrollItemIntoView(next);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const next = (selectedIndex - 1 + filteredItems.length) % Math.max(1, filteredItems.length);
+        setSelectedIndex(next);
+        scrollItemIntoView(next);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredItems[selectedIndex]) { onSelectEvent(filteredItems[selectedIndex]); onCloseEvent(); }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, filteredItems, selectedIndex]);
 
   if (!isOpen) return null;
 
@@ -129,7 +143,7 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid var(--color-border)' }}>
           <Search
-            className="w-5 h-5 flex-shrink-0"
+            className="size-5 flex-shrink-0"
             style={{ color: 'var(--color-primary)' }}
             strokeWidth={2}
           />
@@ -140,7 +154,10 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
             aria-label="Suche"
             className="flex-1 bg-transparent border-none outline-none palette-input"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => {
+              setSearch(e.target.value);
+              setSelectedIndex(0);
+            }}
           />
           <Button
             onClick={onClose}
@@ -148,7 +165,7 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
             variant="icon"
             style={{ width: 44, height: 44 }}
           >
-            <X className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <X className="size-3.5" strokeWidth={2.5} />
           </Button>
         </div>
 
@@ -236,7 +253,7 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
                   color: 'var(--color-text-muted)',
                 }}
               >
-                <Search className="w-5 h-5" strokeWidth={1.75} />
+                <Search className="size-5" strokeWidth={1.75} />
               </div>
               <div className="text-center">
                 {search.trim().length === 0 ? (

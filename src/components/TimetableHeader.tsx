@@ -48,18 +48,18 @@ export default function TimetableHeader({
               aria-label="Zur Auswahl"
               variant="icon"
             >
-              <Home className="w-5 h-5" strokeWidth={2} />
+              <Home className="size-5" strokeWidth={2} />
             </Button>
           )}
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: 'var(--color-text-muted)' }}>
               {selectionLabel}
             </p>
-            <h2 className="text-base font-bold leading-tight truncate display flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
+            <h2 className="text-base font-semibold leading-tight truncate display flex items-center gap-2" style={{ color: 'var(--color-text)' }}>
               {isLoading ? (
                 <>
                   <Loader2
-                    className="w-4 h-4 animate-spin flex-shrink-0"
+                    className="size-4 animate-spin flex-shrink-0"
                     style={{ color: 'var(--color-primary)' }}
                     strokeWidth={2.5}
                   />
@@ -97,7 +97,7 @@ export default function TimetableHeader({
               aria-label={`Vorherige ${navigateLabel}`}
               variant="icon"
             >
-              <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+              <ChevronLeft className="size-5" strokeWidth={2} />
             </Button>
 
           <Button
@@ -114,7 +114,7 @@ export default function TimetableHeader({
               aria-label={`Nächste ${navigateLabel}`}
               variant="icon"
             >
-              <ChevronRight className="w-5 h-5" strokeWidth={2} />
+              <ChevronRight className="size-5" strokeWidth={2} />
             </Button>
           </div>
 
@@ -123,7 +123,7 @@ export default function TimetableHeader({
             aria-label="Fächer verbergen"
             variant="icon"
           >
-            <ShieldBan className="w-5 h-5 block" strokeWidth={2} />
+            <ShieldBan className="size-5 block" strokeWidth={2} />
           </Button>
         </div>
       </div>

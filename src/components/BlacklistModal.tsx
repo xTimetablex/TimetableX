@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useEffectEvent } from 'react';
 import { ShieldBan, X, Check } from 'lucide-react';
 import { Button } from './button';
 
@@ -26,14 +26,16 @@ export default function BlacklistModal({
   removeFromBlacklist,
 }: BlacklistModalProps) {
 
+  const onCloseEvent = useEffectEvent(onClose);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseEvent();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -69,7 +71,7 @@ export default function BlacklistModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <div className="flex items-center gap-2 text-primary" style={{ color: 'var(--color-text)' }}>
-            <ShieldBan className="w-5 h-5 flex-shrink-0" style={{ color: 'var(--color-danger)' }} />
+            <ShieldBan className="size-5 flex-shrink-0" style={{ color: 'var(--color-danger)' }} />
             <span className="font-semibold text-base">Fächer verbergen ({currentEntity})</span>
           </div>
           <Button
@@ -78,7 +80,7 @@ export default function BlacklistModal({
             variant="icon"
             style={{ width: 36, height: 36 }}
           >
-            <X className="w-4 h-4 mx-auto" style={{ color: 'var(--color-text-secondary)' }} strokeWidth={2} />
+            <X className="size-4 mx-auto" style={{ color: 'var(--color-text-secondary)' }} strokeWidth={2} />
           </Button>
         </div>
 
@@ -103,11 +105,11 @@ export default function BlacklistModal({
                   <div className="skeleton" style={{ width: `${55 + (i % 3) * 12}%`, height: 14, animationDelay: `${i * 0.06}s` }} />
                 </div>
               ))}
-              <span className="sr-only" role="status">Lade Fächer der letzten 3 Wochen...</span>
+              <output className="sr-only">Lade Fächer der letzten 3 Wochen…</output>
             </div>
           ) : allSubjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <ShieldBan className="w-8 h-8 opacity-20 mb-3" style={{ color: 'var(--color-text-muted)' }} />
+              <ShieldBan className="size-8 opacity-20 mb-3" style={{ color: 'var(--color-text-muted)' }} />
               <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Keine Fächer verfügbar</p>
               <p className="text-xs mt-1 max-w-[200px]" style={{ color: 'var(--color-text-muted)' }}>
                 Für diesen Tag sind keine Fächer im Plan eingetragen.
@@ -127,14 +129,14 @@ export default function BlacklistModal({
                   }}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div 
-                      className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
+                    <div
+                      className="size-5 rounded flex items-center justify-center flex-shrink-0 transition-colors"
                       style={{
                         border: isBlacklisted ? 'none' : '1px solid var(--color-text-muted)',
                         background: isBlacklisted ? 'var(--color-danger)' : 'transparent',
                       }}
                     >
-                      {isBlacklisted && <Check className="w-3.5 h-3.5" style={{ color: 'white' }} strokeWidth={3} />}
+                      {isBlacklisted && <Check className="size-3.5" style={{ color: 'white' }} strokeWidth={3} />}
                     </div>
                     <span 
                       className="text-sm font-medium truncate" 

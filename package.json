@@ -8,11 +8,13 @@
     "start": "next start",
     "test": "vitest run",
     "lint": "tsc --noEmit",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "doctor": "npx react-doctor@latest"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.95.2",
     "@types/xml2js": "^0.4.14",
+    "framer-motion": "^12.40.0",
     "lucide-react": "^0.577.0",
     "next": "^16.2.9",
     "react": "19.2.3",

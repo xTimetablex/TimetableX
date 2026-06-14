@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { Providers } from "./providers";
 import BackgroundField from "@/components/BackgroundField";
@@ -35,9 +36,8 @@ export default function RootLayout({
           <BackgroundField />
           <Providers>{children}</Providers>
         </div>
-        <script
-          dangerouslySetInnerHTML={{
-          __html: `
+        <Script id="unregister-sw" strategy="afterInteractive">
+          {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
                 navigator.serviceWorker.getRegistrations()
@@ -48,9 +48,8 @@ export default function RootLayout({
                   });
               });
             }
-          `,
-          }}
-        />
+          `}
+        </Script>
       </body>
     </html>
   );

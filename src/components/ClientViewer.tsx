@@ -32,7 +32,7 @@ interface ClientViewerProps {
 }
 
 function pushDate(router: ReturnType<typeof useRouter>, dateStr: string, viewMode: ViewMode) {
-  router.push(`/?date=${dateStr}&view=${viewMode}&step=timetable`);
+  router.push(`/app?date=${dateStr}&view=${viewMode}&step=timetable`);
 }
 
 function getDayOffsetDate(dateStr: string | undefined, offset: number): string {
@@ -55,7 +55,7 @@ function pushStep(router: ReturnType<typeof useRouter>, step: 'selection' | 'tim
   if (dateStr) params.set('date', dateStr);
   if (viewMode) params.set('view', viewMode);
   if (step === 'timetable') params.set('step', 'timetable');
-  router.push(`/?${params.toString()}`);
+  router.push(`/app?${params.toString()}`);
 }
 
 const selectionModeLabel: Record<FilterMode, string> = {
@@ -121,9 +121,9 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
     const currentRooms    = data?.availableRooms ?? [];
     const currentTeachers = data?.availableTeachers ?? [];
 
-    const allClasses  = [...new Set([...currentClasses,  ...extendedClasses])].sort();
-    const allRooms    = [...new Set([...currentRooms,    ...extendedRooms])].sort();
-    const allTeachers = [...new Set([...currentTeachers, ...extendedTeachers])].sort();
+    const allClasses  = Array.from(new Set([...currentClasses,  ...extendedClasses])).sort();
+    const allRooms    = Array.from(new Set([...currentRooms,    ...extendedRooms])).sort();
+    const allTeachers = Array.from(new Set([...currentTeachers, ...extendedTeachers])).sort();
 
     const items: SearchItem[] = [];
     allClasses.forEach(c => items.push({ id: c, name: c, type: 'class' }));
@@ -229,7 +229,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
           <div>
             {isLoading && !data ? (
               <>
-                <span className="sr-only" role="status">Daten werden geladen…</span>
+                <output className="sr-only">Daten werden geladen…</output>
                 {currentViewMode === 'week' ? (
                   <WeekTimetableSkeleton showClassColumn={filterMode !== 'class'} />
                 ) : (
@@ -248,7 +248,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
                     color: 'var(--color-danger)',
                   }}
                 >
-                  <AlertCircle className="w-7 h-7" strokeWidth={1.75} />
+                  <AlertCircle className="size-7" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-base font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
@@ -263,7 +263,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
                   variant="primary" className="text-sm"
                   style={{ padding: '0.75rem 1.5rem' }}
                 >
-                  <RefreshCw className="w-4 h-4" strokeWidth={2} />
+                  <RefreshCw className="size-4" strokeWidth={2} />
                   Erneut versuchen
                 </Button>
               </div>
@@ -280,8 +280,8 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
                   }}
                 >
                   {data?.isWeekend
-                    ? <Calendar className="w-7 h-7" strokeWidth={1.75} />
-                    : <CheckCircle2 className="w-7 h-7" strokeWidth={1.75} />
+                    ? <Calendar className="size-7" strokeWidth={1.75} />
+                    : <CheckCircle2 className="size-7" strokeWidth={1.75} />
                   }
                 </div>
                 <div>
@@ -299,7 +299,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
                   variant="outline" className="text-sm"
                   style={{ padding: '0.625rem 1.25rem' }}
                 >
-                  <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
+                  <RefreshCw className="size-3.5" strokeWidth={2} />
                   Aktualisieren
                 </Button>
               </div>
@@ -315,7 +315,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
                     color: 'var(--color-primary)',
                   }}
                 >
-                  <Calendar className="w-7 h-7" strokeWidth={1.75} />
+                  <Calendar className="size-7" strokeWidth={1.75} />
                 </div>
                 <div>
                   <p className="text-base font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
@@ -330,7 +330,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
                   variant="outline" className="text-sm"
                   style={{ padding: '0.625rem 1.25rem' }}
                 >
-                  <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
+                  <RefreshCw className="size-3.5" strokeWidth={2} />
                   Aktualisieren
                 </Button>
               </div>
@@ -355,13 +355,13 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
           {!isWeekData && data?.dayNotes && data.dayNotes.length > 0 && (
             <div className="day-notes">
               <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--color-warning)' }}>
-                <AlertCircle className="w-4 h-4 flex-shrink-0" strokeWidth={2} />
+                <AlertCircle className="size-4 flex-shrink-0" strokeWidth={2} />
                 <span className="text-sm font-semibold">Besondere Hinweise</span>
               </div>
               <div className="space-y-1.5">
-                {data.dayNotes.map((note, i) => (
+                {data.dayNotes.map((note) => (
                   <p
-                    key={i}
+                    key={note}
                     className="text-sm leading-relaxed"
                     style={{ color: 'var(--color-text)' }}
                   >

@@ -53,7 +53,7 @@ export default function SelectionMenu({
             className="rounded-[10px] flex-shrink-0"
           />
           <div className="min-w-0">
-            <h1 className="text-lg font-bold leading-tight tracking-tight truncate display" style={{ color: 'var(--color-text)' }}>
+            <h1 className="text-lg font-semibold leading-tight tracking-tight truncate display" style={{ color: 'var(--color-text)' }}>
               TimetableX
             </h1>
           </div>
@@ -90,7 +90,7 @@ export default function SelectionMenu({
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <kbd className="hidden sm:flex kbd">⌘K</kbd>
-              <Search className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
+              <Search className="size-4" style={{ color: 'var(--color-text-muted)' }} />
             </div>
           </Button>
 
@@ -102,7 +102,7 @@ export default function SelectionMenu({
             style={{ flexShrink: 0 }}
           >
             <Star
-              className="w-5 h-5 block"
+              className="size-5 block"
               fill={isFavorite ? 'currentColor' : 'none'}
               strokeWidth={2}
             />
@@ -114,17 +114,17 @@ export default function SelectionMenu({
             variant="iconDanger"
             style={{ flexShrink: 0 }}
           >
-            <LogOut className="w-5 h-5 block" strokeWidth={2} />
+            <LogOut className="size-5 block" strokeWidth={2} />
           </Button>
         </div>
 
         {favorites.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {favorites.map((f, i) => {
+            {favorites.map((f) => {
               const isSelected = filterMode === f.mode && selectedValue === f.value;
               return (
                 <Button
-                  key={i}
+                  key={`${f.mode}-${f.value}`}
                   onClick={() => onSelectFavorite(f.mode, f.value)}
                   variant="chip"
                   className={isSelected ? 'chip-active' : undefined}

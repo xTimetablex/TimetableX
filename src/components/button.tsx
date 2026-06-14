@@ -1,7 +1,5 @@
 'use client';
 
-import { forwardRef } from 'react';
-
 type ButtonVariant =
   | 'primary'
   | 'outline'
@@ -13,6 +11,7 @@ type ButtonVariant =
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
+  ref?: React.Ref<HTMLButtonElement>;
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -29,15 +28,13 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, type = 'button', variant = 'plain', ...props }, ref) => (
+export function Button({ className, type = 'button', variant = 'plain', ref, ...props }: ButtonProps) {
+  return (
     <button
       ref={ref}
       type={type}
       className={cx(variantClasses[variant], className)}
       {...props}
     />
-  ),
-);
-
-Button.displayName = 'Button';
+  );
+}

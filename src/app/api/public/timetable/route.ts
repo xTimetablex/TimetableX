@@ -19,7 +19,7 @@ type Filter = { mode: FilterMode; value: string };
 function shapeDay(day: TimetableData, filter: Filter | null) {
   const entries = filter
     ? filterEntries(day.entries, filter.mode, filter.value, [])
-    : [...day.entries].sort((a, b) => (parseInt(a.hour) || 0) - (parseInt(b.hour) || 0));
+    : day.entries.toSorted((a, b) => (parseInt(a.hour) || 0) - (parseInt(b.hour) || 0));
 
   return {
     date: day.date,

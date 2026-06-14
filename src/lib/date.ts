@@ -1,5 +1,3 @@
-export type ViewMode = 'day' | 'week';
-
 export function formatDateStr(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -56,13 +54,15 @@ export function getWeekDates(anchorDate: Date): Date[] {
   return Array.from({ length: 5 }, (_, index) => addDays(start, index));
 }
 
+const dayLabelFormatter = new Intl.DateTimeFormat('de-DE', {
+  weekday: 'long',
+  day: '2-digit',
+  month: 'long',
+  year: 'numeric',
+});
+
 export function formatDayLabel(date: Date): string {
-  return new Intl.DateTimeFormat('de-DE', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(date);
+  return dayLabelFormatter.format(date);
 }
 
 export function formatWeekLabel(startDate: Date, endDate: Date): string {
