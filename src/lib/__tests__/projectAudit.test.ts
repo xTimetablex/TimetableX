@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
@@ -16,7 +17,16 @@ describe('project audit regressions', () => {
 
   it('uses npm as the single package lock source', () => {
     expect(fs.existsSync(path.join(root, 'package-lock.json'))).toBe(true);
-    expect(fs.existsSync(path.join(root, 'bun.lock'))).toBe(false);
+
+    // `bun install` migrates package-lock.json into a local bun.lock file on disk,
+    // even with --frozen-lockfile, so check git tracking rather than fs existence.
+    const trackedLockfiles = execFileSync('git', ['ls-files', 'bun.lock', 'bun.lockb'], {
+      cwd: root,
+    })
+      .toString()
+      .trim();
+
+    expect(trackedLockfiles).toBe('');
   });
 
   it('keeps Next config on a single default export with allowed dev origins', () => {
