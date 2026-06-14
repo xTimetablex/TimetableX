@@ -7,9 +7,10 @@ inbound SSH from GitHub required).
 
 These steps only need to be done once on the VPS (`/opt/timetablex`).
 
-> **Note:** Docker on this VPS runs **rootless** under the `me` user. The Docker socket lives at
-> `/run/user/1000/docker.sock` and the Docker config at `/home/me/.docker/config.json` — both are
-> already referenced correctly in `docker-compose.yml`.
+> **Note:** The Docker daemon on this VPS is rootful, listening on `/var/run/docker.sock`
+> (owned by `root:docker`). The `me` user is not in the `docker` group, so run `docker` /
+> `docker compose` commands with `sudo` — this matches the `/var/run/docker.sock` and
+> `/root/.docker/config.json` paths already referenced in `docker-compose.yml`.
 
 ### 1. Copy files to the VPS
 
@@ -20,20 +21,28 @@ scp docker-compose.yml me@185.207.105.133:/opt/timetablex/
 ### 2. Create `.env` on the VPS
 
 ```bash
-mkdir -p /opt/timetablex
-nano /opt/timetablex/.env
-# Add all production environment variables here (NEXT_PUBLIC_* etc.)
+sudo mkdir -p /opt/timetablex
+sudo nano /opt/timetablex/.env
 ```
+
+Required variable:
+
+- `TIMETABLEX_AUTH_SECRET` — random secret used to encrypt the session cookie that stores school
+  login credentials. Generate with `openssl rand -hex 32`. Without it the app falls back to an
+  insecure built-in development secret.
+
+`NEXT_PUBLIC_*` variables (e.g. `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_UMAMI_*`) are inlined at
+**build time** by the `deploy` workflow, not read from this `.env`.
 
 ### 3. Authenticate Docker with GHCR
 
 Generate a GitHub Personal Access Token with **`read:packages`** scope only, then on the VPS:
 
 ```bash
-echo YOUR_GITHUB_PAT | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+echo YOUR_GITHUB_PAT | sudo docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
 
-This writes credentials to `/home/me/.docker/config.json`, which Watchtower mounts read-only to
+This writes credentials to `/root/.docker/config.json`, which Watchtower mounts read-only to
 pull new images.
 
 ### 4. Set package visibility (if the repo is private)
@@ -47,7 +56,7 @@ This VPS does not yet have a reverse proxy running. Create the shared network an
 container that `web` will join:
 
 ```bash
-docker network create caddy-public
+sudo docker network create caddy-public
 ```
 
 Add a `Caddyfile` (e.g. `/opt/caddy/Caddyfile`) containing:
@@ -62,7 +71,7 @@ Run Caddy on the `caddy-public` network with ports 80/443 published and the `Cad
 e.g.:
 
 ```bash
-docker run -d --name caddy --restart unless-stopped \
+sudo docker run -d --name caddy --restart unless-stopped \
   --network caddy-public \
   -p 80:80 -p 443:443 \
   -v /opt/caddy/Caddyfile:/etc/caddy/Caddyfile \
@@ -70,21 +79,27 @@ docker run -d --name caddy --restart unless-stopped \
   caddy:2-alpine
 ```
 
-Caddy handles HTTPS/TLS automatically via Let's Encrypt as long as `timetablex.space` resolves
-(via Cloudflare DNS) to this VPS and ports 80/443 are reachable.
+Caddy handles HTTPS/TLS automatically via Let's Encrypt, **but only once `timetablex.space`
+resolves to this VPS's IP** via Cloudflare DNS. Until the DNS record is updated, Caddy will keep
+retrying the ACME challenge in the background — update the `A`/`AAAA` record and it will pick up
+a certificate automatically.
 
 To reload Caddy after editing the `Caddyfile`:
 
 ```bash
-docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+sudo docker exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
 
 ### 6. Start the stack
 
 ```bash
 cd /opt/timetablex
-docker compose up -d
+sudo docker compose up -d
 ```
+
+This requires the `ghcr.io/xtimetablex/timetablex` image to exist (i.e. a release has been
+published at least once) and step 3's `docker login` to have succeeded if the package is
+private.
 
 ## Future deploys
 
