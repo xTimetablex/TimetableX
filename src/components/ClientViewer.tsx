@@ -229,7 +229,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
           <div>
             {isLoading && !data ? (
               <>
-                <span className="sr-only" role="status">Daten werden geladen…</span>
+                <output className="sr-only">Daten werden geladen…</output>
                 {currentViewMode === 'week' ? (
                   <WeekTimetableSkeleton showClassColumn={filterMode !== 'class'} />
                 ) : (

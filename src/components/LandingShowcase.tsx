@@ -3,11 +3,9 @@
 import { m } from 'framer-motion';
 
 import { springPop, staggerContainer } from '@/lib/motionVariants';
-import {
-  MOCK_TIMETABLE_ENTRIES,
-  LandingTimetableHeader,
-  LandingTimetableRow,
-} from './LandingTimetablePreview';
+import { MOCK_TIMETABLE_ENTRIES } from '@/lib/mockTimetableData';
+import { LandingTimetableHeader } from './LandingTimetableHeader';
+import { LandingTimetableRow } from './LandingTimetableRow';
 
 export default function LandingShowcase() {
   return (

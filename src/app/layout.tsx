@@ -36,11 +36,8 @@ export default function RootLayout({
           <BackgroundField />
           <Providers>{children}</Providers>
         </div>
-        <Script
-          id="unregister-sw"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-          __html: `
+        <Script id="unregister-sw" strategy="afterInteractive">
+          {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
                 navigator.serviceWorker.getRegistrations()
@@ -51,9 +48,8 @@ export default function RootLayout({
                   });
               });
             }
-          `,
-          }}
-        />
+          `}
+        </Script>
       </body>
     </html>
   );

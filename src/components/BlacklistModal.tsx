@@ -105,7 +105,7 @@ export default function BlacklistModal({
                   <div className="skeleton" style={{ width: `${55 + (i % 3) * 12}%`, height: 14, animationDelay: `${i * 0.06}s` }} />
                 </div>
               ))}
-              <span className="sr-only" role="status">Lade Fächer der letzten 3 Wochen…</span>
+              <output className="sr-only">Lade Fächer der letzten 3 Wochen…</output>
             </div>
           ) : allSubjects.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">

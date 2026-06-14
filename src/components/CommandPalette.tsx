@@ -24,23 +24,31 @@ const typeLabelPlural: Record<SearchItem['type'], string> = {
   teacher: 'Lehrer',
 };
 
+const TYPE_ICON_PROPS = { className: 'w-4 h-4', strokeWidth: 1.75 as number };
+
 const TypeIcon = ({ type }: { type: SearchItem['type'] }) => {
-  const props = { className: 'w-4 h-4', strokeWidth: 1.75 as number };
-  if (type === 'class') return <Users {...props} />;
-  if (type === 'room') return <MapPin {...props} />;
-  return <User {...props} />;
+  if (type === 'class') return <Users {...TYPE_ICON_PROPS} />;
+  if (type === 'room') return <MapPin {...TYPE_ICON_PROPS} />;
+  return <User {...TYPE_ICON_PROPS} />;
 };
 
 export default function CommandPalette({ isOpen, onClose, onSelect, items }: CommandPaletteProps) {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setSearch('');
       setSelectedIndex(0);
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
       const id = setTimeout(() => inputRef.current?.focus(), 10);
       return () => clearTimeout(id);
     }
@@ -66,16 +74,31 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
   const onSelectEvent = useEffectEvent(onSelect);
   const onCloseEvent = useEffectEvent(onClose);
 
+  const scrollItemIntoView = (index: number) => {
+    const el = document.getElementById(`palette-item-${index}`);
+    if (el && scrollRef.current) {
+      const c = scrollRef.current;
+      const top = el.offsetTop;
+      const h = el.offsetHeight;
+      if (top < c.scrollTop) c.scrollTop = top - 8;
+      else if (top + h > c.scrollTop + c.offsetHeight) c.scrollTop = top + h - c.offsetHeight + 8;
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
       if (e.key === 'Escape') { onCloseEvent(); }
       else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex(prev => (prev + 1) % Math.max(1, filteredItems.length));
+        const next = (selectedIndex + 1) % Math.max(1, filteredItems.length);
+        setSelectedIndex(next);
+        scrollItemIntoView(next);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex(prev => (prev - 1 + filteredItems.length) % Math.max(1, filteredItems.length));
+        const next = (selectedIndex - 1 + filteredItems.length) % Math.max(1, filteredItems.length);
+        setSelectedIndex(next);
+        scrollItemIntoView(next);
       } else if (e.key === 'Enter') {
         e.preventDefault();
         if (filteredItems[selectedIndex]) { onSelectEvent(filteredItems[selectedIndex]); onCloseEvent(); }
@@ -84,17 +107,6 @@ export default function CommandPalette({ isOpen, onClose, onSelect, items }: Com
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, filteredItems, selectedIndex]);
-
-  useEffect(() => {
-    const el = document.getElementById(`palette-item-${selectedIndex}`);
-    if (el && scrollRef.current) {
-      const c = scrollRef.current;
-      const top = el.offsetTop;
-      const h = el.offsetHeight;
-      if (top < c.scrollTop) c.scrollTop = top - 8;
-      else if (top + h > c.scrollTop + c.offsetHeight) c.scrollTop = top + h - c.offsetHeight + 8;
-    }
-  }, [selectedIndex]);
 
   if (!isOpen) return null;
 

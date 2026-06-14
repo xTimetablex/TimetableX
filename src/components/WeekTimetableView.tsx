@@ -20,23 +20,23 @@ interface WeekTimetableViewProps {
   selectionLabel?: string;
 }
 
+function handleWheel(event: WheelEvent<HTMLDivElement>) {
+  const el = event.currentTarget;
+  const horizontalIntent = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+
+  if (!horizontalIntent) return;
+
+  const nextScrollLeft = el.scrollLeft + (event.shiftKey ? event.deltaY : event.deltaX || event.deltaY);
+  const maxScrollLeft = el.scrollWidth - el.clientWidth;
+  const canScroll = maxScrollLeft > 0 && (nextScrollLeft > 0 || nextScrollLeft < maxScrollLeft);
+
+  if (!canScroll) return;
+
+  event.preventDefault();
+  el.scrollLeft = Math.max(0, Math.min(maxScrollLeft, nextScrollLeft));
+}
+
 export default function WeekTimetableView({ days, showClassColumn, selectionLabel }: WeekTimetableViewProps) {
-  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    const horizontalIntent = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
-
-    if (!horizontalIntent) return;
-
-    const nextScrollLeft = el.scrollLeft + (event.shiftKey ? event.deltaY : event.deltaX || event.deltaY);
-    const maxScrollLeft = el.scrollWidth - el.clientWidth;
-    const canScroll = maxScrollLeft > 0 && (nextScrollLeft > 0 || nextScrollLeft < maxScrollLeft);
-
-    if (!canScroll) return;
-
-    event.preventDefault();
-    el.scrollLeft = Math.max(0, Math.min(maxScrollLeft, nextScrollLeft));
-  };
-
   return (
     <div
       className="overflow-x-auto overflow-y-visible p-4 sm:p-5 snap-x snap-mandatory scroll-smooth lg:snap-none lg:scroll-auto"
