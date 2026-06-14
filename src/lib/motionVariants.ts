@@ -11,6 +11,17 @@ export const springPop: Variants = {
   },
 };
 
+export const heroPop: Variants = {
+  hidden: { opacity: 0, y: 50, scale: 0.6, rotate: -10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    rotate: 0,
+    transition: { type: 'spring', stiffness: 140, damping: 14 },
+  },
+};
+
 export const staggerContainer: Variants = {
   hidden: {},
   visible: {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { m } from "framer-motion";
 
-import { springPop, staggerContainer } from "@/lib/motionVariants";
+import { heroPop, springPop, staggerContainer } from "@/lib/motionVariants";
 import LandingTimetablePreview from "./LandingTimetablePreview";
 
 export default function LandingHero() {
@@ -16,7 +16,7 @@ export default function LandingHero() {
         animate="visible"
       >
         <m.h1
-          variants={springPop}
+          variants={heroPop}
           className="mt-4 text-4xl font-bold sm:text-6xl"
           style={{ color: "var(--color-text)" }}
         >

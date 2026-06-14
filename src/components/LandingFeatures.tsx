@@ -42,12 +42,16 @@ export default function LandingFeatures() {
   return (
     <section id="features" className="px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-5xl">
-        <h2
+        <m.h2
           className="text-center text-3xl font-bold sm:text-4xl"
           style={{ color: "var(--color-text)" }}
+          variants={springPop}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
         >
           Alles, was du brauchst
-        </h2>
+        </m.h2>
         <m.div
           className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
           variants={staggerContainer}
