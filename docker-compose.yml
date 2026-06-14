@@ -1,0 +1,21 @@
+services:
+  web:
+    image: ghcr.io/xtimetablex/timetablex:latest
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - caddy-public
+
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /run/user/1000/docker.sock:/var/run/docker.sock
+      - /home/me/.docker/config.json:/config.json
+    command: --interval 60 --cleanup web
+    networks:
+      - caddy-public
+
+networks:
+  caddy-public:
+    external: true
