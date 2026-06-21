@@ -87,7 +87,10 @@ export function useTimetable(
 
     const options = getAvailableValues(data, filterMode);
     if (options.length === 0) {
-      if (selectedValue) setSelectedValue('');
+      // No classes available for this day (e.g. weekend or holiday).
+      // Keep the user's selection so it survives empty-plan days — the UI
+      // shows the "Wochenende"/"Kein Unterricht" empty state instead of
+      // resetting the chosen class back to the '—' placeholder.
       return;
     }
 
