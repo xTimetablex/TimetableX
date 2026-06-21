@@ -42,7 +42,7 @@ export default function SelectionMenu({
   onContinue,
 }: SelectionMenuProps) {
   return (
-    <section className="panel-muted overflow-hidden">
+    <section className="panel-muted overflow-hidden border-t-0" style={{ borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
       <div className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5 border-b" style={{ borderColor: 'var(--color-border-subtle)' }}>
         <div className="flex items-center gap-3 min-w-0">
           <Image

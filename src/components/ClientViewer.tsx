@@ -184,8 +184,8 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
 
       <div className="flex-1">
         {currentStep === 'selection' ? (
-          <section className="flex min-h-[100dvh] items-center px-4 py-8 sm:px-6 lg:px-8">
-          <div className="w-full max-w-4xl mx-auto">
+          <section className="flex min-h-[100dvh] items-start justify-center px-4 pb-8 sm:px-6 lg:px-8">
+          <div className="w-full max-w-2xl mx-auto">
             <SelectionMenu
               filterMode={filterMode}
               selectedValue={selectedValue}
