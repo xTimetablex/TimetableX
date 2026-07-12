@@ -31,6 +31,7 @@ async function runOnce() {
     const notifications = computeNotifications(week, classes, subscriber.seen);
     if (notifications.length === 0) continue;
 
+    const deliveredKeys: string[] = [];
     for (const notification of notifications) {
       try {
         await webpush.sendNotification(
@@ -40,6 +41,7 @@ async function runOnce() {
           },
           JSON.stringify({ title: notification.title, body: notification.body, url: '/app' })
         );
+        deliveredKeys.push(notification.key);
       } catch (error: any) {
         if (error?.statusCode === 410 || error?.statusCode === 404) {
           removePushSubscription(subscriber.id);
@@ -49,7 +51,9 @@ async function runOnce() {
       }
     }
 
-    markSeen(subscriber.id, notifications.map(n => n.key));
+    if (deliveredKeys.length > 0) {
+      markSeen(subscriber.id, deliveredKeys);
+    }
   }
 }
 
