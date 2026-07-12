@@ -1,6 +1,7 @@
 'use client';
 
 import { TimetableEntry } from '@/lib/types';
+import { isCancelledEntry } from '@/lib/timetableEntry';
 import { CheckCircle2, XCircle } from 'lucide-react';
 
 interface TimetableTableProps {
@@ -9,13 +10,6 @@ interface TimetableTableProps {
   compact?: boolean;
   isSelectionAvailable?: boolean;
   selectionLabel?: string;
-}
-
-function isCancelledEntry(entry: TimetableEntry): boolean {
-  const combinedText = `${entry.subject} ${entry.info} ${entry.teacher} ${entry.room}`.toLowerCase();
-  return ['ausfall', 'entfall', 'fällt aus', 'faellt aus', 'cancel'].some(keyword =>
-    combinedText.includes(keyword)
-  );
 }
 
 function changeFlags(infoRaw: string) {
