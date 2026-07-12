@@ -3,6 +3,22 @@ services:
     image: ghcr.io/xtimetablex/timetablex:latest
     restart: unless-stopped
     env_file: .env
+    environment:
+      - SQLITE_PATH=/data/timetablex.sqlite
+    volumes:
+      - sqlite-data:/data
+    networks:
+      - caddy-public
+
+  worker:
+    image: ghcr.io/xtimetablex/timetablex:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SQLITE_PATH=/data/timetablex.sqlite
+    volumes:
+      - sqlite-data:/data
+    command: ["npx", "tsx", "worker/notify.ts"]
     networks:
       - caddy-public
 
@@ -12,10 +28,13 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /root/.docker/config.json:/config.json
-    command: --interval 60 --cleanup web
+    command: --interval 60 --cleanup web worker
     networks:
       - caddy-public
 
 networks:
   caddy-public:
     external: true
+
+volumes:
+  sqlite-data:
