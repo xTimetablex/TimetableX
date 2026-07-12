@@ -55,11 +55,11 @@ describe('project audit regressions', () => {
     expect(useAvailableSubjects).not.toMatch(/body:\s*JSON\.stringify\([\s\S]*pass/);
   });
 
-  it('does not register the stale offline service worker', () => {
+  it('registers the push-only service worker with no fetch/cache handler', () => {
     const layout = read('src/app/layout.tsx');
+    const sw = read('public/sw.js');
 
-    expect(layout).toContain('getRegistrations');
-    expect(layout).toContain('unregister');
-    expect(layout).not.toContain("register('/sw.js')");
+    expect(layout).toContain("register('/sw.js')");
+    expect(sw).not.toContain("addEventListener('fetch'");
   });
 });

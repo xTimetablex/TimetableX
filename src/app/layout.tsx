@@ -36,16 +36,11 @@ export default function RootLayout({
           <BackgroundField />
           <Providers>{children}</Providers>
         </div>
-        <Script id="unregister-sw" strategy="afterInteractive">
+        <Script id="register-sw" strategy="afterInteractive">
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
-                navigator.serviceWorker.getRegistrations()
-                  .then(function(registrations) {
-                    registrations.forEach(function(registration) {
-                      registration.unregister();
-                    });
-                  });
+                navigator.serviceWorker.register('/sw.js');
               });
             }
           `}
