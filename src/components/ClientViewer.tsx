@@ -11,6 +11,7 @@ import SelectionMenu from './SelectionMenu';
 import TimetableHeader from './TimetableHeader';
 import TimetableTable from './TimetableTable';
 import BlacklistModal from './BlacklistModal';
+import NotificationSettings from './NotificationSettings';
 import WeekTimetableView from './WeekTimetableView';
 import LoadingBar from './LoadingBar';
 import { TimetableSkeleton, WeekTimetableSkeleton } from './TimetableSkeleton';
@@ -201,6 +202,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
               }}
               onContinue={() => pushStep(router, 'timetable', currentDateStr || getTodayStr(), currentViewMode)}
             />
+            <NotificationSettings favorites={favorites} />
           </div>
         </section>
       ) : (
