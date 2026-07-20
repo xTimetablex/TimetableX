@@ -28,28 +28,38 @@ const week: TimetableWeekData = {
 };
 
 describe('buildIcsCalendar', () => {
+  const classEntity = { type: 'class' as const, value: '9/2' };
+
   it('starts with the required VCALENDAR header and footer', () => {
-    const ics = buildIcsCalendar(week, ['9/2']);
+    const ics = buildIcsCalendar(week, classEntity);
     expect(ics.startsWith('BEGIN:VCALENDAR')).toBe(true);
     expect(ics.trim().endsWith('END:VCALENDAR')).toBe(true);
   });
 
-  it('includes one VEVENT per entry for the requested classes only', () => {
-    const ics = buildIcsCalendar(week, ['9/2']);
+  it('includes one VEVENT per entry for the requested class only', () => {
+    const ics = buildIcsCalendar(week, classEntity);
     const eventCount = (ics.match(/BEGIN:VEVENT/g) || []).length;
     expect(eventCount).toBe(2);
     expect(ics).not.toContain('SUMMARY:DE');
   });
 
   it('marks cancelled lessons with STATUS:CANCELLED and a prefix', () => {
-    const ics = buildIcsCalendar(week, ['9/2']);
+    const ics = buildIcsCalendar(week, classEntity);
     expect(ics).toContain('STATUS:CANCELLED');
     expect(ics).toContain('SUMMARY:❌ SPO');
   });
 
   it('puts the room in LOCATION', () => {
-    const ics = buildIcsCalendar(week, ['9/2']);
+    const ics = buildIcsCalendar(week, classEntity);
     expect(ics).toContain('LOCATION:313');
+  });
+
+  it('filters by teacher and appends the class to the summary', () => {
+    const ics = buildIcsCalendar(week, { type: 'teacher', value: 'KNO' });
+    const eventCount = (ics.match(/BEGIN:VEVENT/g) || []).length;
+    expect(eventCount).toBe(1);
+    expect(ics).toContain('SUMMARY:MA · 9/2');
+    expect(ics).not.toContain('SUMMARY:DE');
   });
 
   it('omits entries for hours with no known bell time', () => {
@@ -62,7 +72,7 @@ describe('buildIcsCalendar', () => {
         },
       ],
     };
-    const ics = buildIcsCalendar(weekWithUnknownHour, ['9/2']);
+    const ics = buildIcsCalendar(weekWithUnknownHour, classEntity);
     expect(ics.match(/BEGIN:VEVENT/g)).toBeNull();
   });
 });

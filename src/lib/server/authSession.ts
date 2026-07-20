@@ -81,3 +81,10 @@ export function getPublicIdentity(credentials: Credentials) {
     user: credentials.user,
   };
 }
+
+export function getAccountId(credentials: Pick<Credentials, 'school' | 'user'>): string {
+  return crypto
+    .createHmac('sha256', getSecret())
+    .update(`${credentials.school}\u0000${credentials.user}`)
+    .digest('base64url');
+}

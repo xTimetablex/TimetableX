@@ -7,6 +7,7 @@ import {
   getAuthCredentials,
   getPublicIdentity,
 } from '@/lib/server/authSession';
+import { upsertAccount } from '@/lib/server/accountStore';
 
 const LoginSchema = z.object({
   school: z.string().min(1, 'Schulnummer fehlt.'),
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
     );
   }
 
+  upsertAccount(result.data);
   const response = NextResponse.json({ identity: getPublicIdentity(result.data) });
   response.cookies.set(AUTH_COOKIE_NAME, createAuthSession(result.data), authCookieOptions);
   return response;

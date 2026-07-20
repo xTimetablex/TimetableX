@@ -11,6 +11,21 @@ bun run start    # Start production server
 bun run test     # Run Vitest tests
 ```
 
+## Redeploying the Docker container locally
+
+After making code changes, rebuild the image and restart the containers:
+
+```bash
+# 1. Build a new local image (runs full Next.js production build)
+docker build -t ghcr.io/xtimetablex/timetablex:latest \
+  --build-arg NEXT_PUBLIC_APP_URL=https://timetablex.space .
+
+# 2. Recreate the web container with the new image (zero-downtime swap)
+docker compose up -d --force-recreate web
+```
+
+The `caddy` and `watchtower` containers do not need to be restarted.
+
 TypeScript type checking is available via `tsc --noEmit`.
 
 ## Tests
@@ -54,7 +69,11 @@ CSS uses Tailwind v4 plus a comprehensive custom design token system defined in 
 
 ### PWA
 
-A service worker (`public/sw.js`) is registered from `layout.tsx`. The app has PWA metadata for iOS home screen installation.
+The app has PWA metadata for iOS home screen installation. There is no service worker (push notifications, the only thing it was used for, were removed).
+
+### Calendar integration
+
+Users can generate an ICS feed URL for their favorited class via `POST /api/calendar/subscribe` (`CalendarLink` component + `useCalendarLink` hook), backed by `src/lib/server/subscriberStore.ts` (SQLite: `id`, `creds_enc`, `favorites`, `ics_token`). The feed itself is served from `src/app/api/calendar/[token]/route.ts`.
 
 ### Demo mode
 

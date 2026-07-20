@@ -11,7 +11,7 @@ import SelectionMenu from './SelectionMenu';
 import TimetableHeader from './TimetableHeader';
 import TimetableTable from './TimetableTable';
 import BlacklistModal from './BlacklistModal';
-import NotificationSettings from './NotificationSettings';
+import CalendarLink from './CalendarLink';
 import WeekTimetableView from './WeekTimetableView';
 import LoadingBar from './LoadingBar';
 import { TimetableSkeleton, WeekTimetableSkeleton } from './TimetableSkeleton';
@@ -22,7 +22,7 @@ import { useFavorites } from '@/lib/hooks/useFavorites';
 import { useTimetable } from '@/lib/hooks/useTimetable';
 import { useAvailableSubjects } from '@/lib/hooks/useAvailableSubjects';
 import { useExtendedEntities } from '@/lib/hooks/useExtendedEntities';
-import { SearchItem, FilterMode, ViewMode } from '@/lib/types';
+import { SearchItem, FilterMode, ViewMode, CalendarEntityType } from '@/lib/types';
 import { addDays, formatDateStr, getTodayStr, getWeekStart, parseDateStr } from '@/lib/date';
 import { track } from '@/lib/analytics';
 
@@ -133,6 +133,14 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
     return items;
   }, [data, extendedClasses, extendedRooms, extendedTeachers]);
 
+  const calendarItems = useMemo(
+    () =>
+      searchItems
+        .filter(item => item.type !== 'room')
+        .map(item => ({ type: item.type as CalendarEntityType, value: item.name })),
+    [searchItems]
+  );
+
   const navigateDay = (offset: number) => {
     track('date_navigated', { direction: offset > 0 ? 'forward' : 'backward', view_mode: currentViewMode });
     const nextDate = currentViewMode === 'week'
@@ -202,7 +210,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
               }}
               onContinue={() => pushStep(router, 'timetable', currentDateStr || getTodayStr(), currentViewMode)}
             />
-            <NotificationSettings favorites={favorites} />
+            <CalendarLink items={calendarItems} />
           </div>
         </section>
       ) : (

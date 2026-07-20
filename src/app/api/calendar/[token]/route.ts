@@ -1,22 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getSubscriberByIcsToken } from '@/lib/server/subscriberStore';
-import { fetchWeekStundenplan } from '@/lib/stundenplan';
+import { getFeedByToken } from '@/lib/server/feedStore';
+import { getSchoolWeek } from '@/lib/server/timetableCache';
 import { buildIcsCalendar } from '@/lib/ics';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token: rawToken } = await params;
   const token = rawToken.replace(/\.ics$/, '');
 
-  const subscriber = getSubscriberByIcsToken(token);
-  if (!subscriber) {
+  const feed = getFeedByToken(token);
+  if (!feed) {
     return NextResponse.json({ error: 'Unbekannter Kalender-Link.' }, { status: 404 });
   }
 
-  const { credentials, favorites } = subscriber;
-  const classes = favorites.filter(f => f.mode === 'class').map(f => f.value);
-
-  const week = await fetchWeekStundenplan(credentials.school, credentials.user, credentials.pass);
-  const ics = buildIcsCalendar(week, classes);
+  const week = await getSchoolWeek(feed.school);
+  const ics = buildIcsCalendar(week, { type: feed.entityType, value: feed.entityValue });
 
   return new NextResponse(ics, {
     status: 200,

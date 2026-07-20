@@ -54,12 +54,4 @@ describe('project audit regressions', () => {
     expect(useTimetable).not.toMatch(/body:\s*JSON\.stringify\([\s\S]*pass/);
     expect(useAvailableSubjects).not.toMatch(/body:\s*JSON\.stringify\([\s\S]*pass/);
   });
-
-  it('registers the push-only service worker with no fetch/cache handler', () => {
-    const layout = read('src/app/layout.tsx');
-    const sw = read('public/sw.js');
-
-    expect(layout).toContain("register('/sw.js')");
-    expect(sw).not.toContain("addEventListener('fetch'");
-  });
 });

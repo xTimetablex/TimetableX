@@ -1,6 +1,8 @@
 export type FilterMode = 'class' | 'room' | 'teacher';
 export type ViewMode = 'day' | 'week';
 
+export type CalendarEntityType = 'class' | 'teacher';
+
 export interface TimetableEntry {
   class: string;
   hour: string;

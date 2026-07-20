@@ -10,25 +10,15 @@ services:
     networks:
       - caddy-public
 
-  worker:
-    image: ghcr.io/xtimetablex/timetablex:latest
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      - SQLITE_PATH=/data/timetablex.sqlite
-    volumes:
-      - sqlite-data:/data
-    command: ["npx", "tsx", "worker/notify.ts"]
-    networks:
-      - caddy-public
-
   watchtower:
     image: containrrr/watchtower
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /root/.docker/config.json:/config.json
-    command: --interval 60 --cleanup web worker
+    environment:
+      - DOCKER_API_VERSION=1.41
+    command: --interval 60 --cleanup web
     networks:
       - caddy-public
 

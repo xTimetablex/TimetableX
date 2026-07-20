@@ -34,15 +34,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-
-# The standalone output above only ships the subset of node_modules the
-# Next.js server needs. The worker service (Task 12, docker-compose.yml)
-# reuses this same image but needs the full dependency set (better-sqlite3,
-# web-push, node-cron, tsx) plus the worker/src TypeScript sources.
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/worker ./worker
-COPY --from=builder --chown=nextjs:nodejs /app/src ./src
-COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+RUN mkdir -p /data && chown nextjs:nodejs /data
 
 USER nextjs
 
