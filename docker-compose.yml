@@ -3,16 +3,22 @@ services:
     image: ghcr.io/xtimetablex/timetablex:latest
     restart: unless-stopped
     env_file: .env
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
     networks:
       - caddy-public
 
   watchtower:
-    image: containrrr/watchtower
+    image: nickfedor/watchtower:latest
     restart: unless-stopped
+    environment:
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=1800
+      - DOCKER_CONFIG=/config.json
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /root/.docker/config.json:/config.json
-    command: --interval 60 --cleanup web
+      - /root/.docker/config.json:/config.json:ro
     networks:
       - caddy-public
 

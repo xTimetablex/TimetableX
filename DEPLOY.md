@@ -8,14 +8,14 @@ inbound SSH from GitHub required).
 These steps only need to be done once on the VPS (`/opt/timetablex`).
 
 > **Note:** The Docker daemon on this VPS is rootful, listening on `/var/run/docker.sock`
-> (owned by `root:docker`). The `me` user is not in the `docker` group, so run `docker` /
+> (owned by `root:docker`). The deploy user is not in the `docker` group, so run `docker` /
 > `docker compose` commands with `sudo` — this matches the `/var/run/docker.sock` and
 > `/root/.docker/config.json` paths already referenced in `docker-compose.yml`.
 
 ### 1. Copy files to the VPS
 
 ```bash
-scp docker-compose.yml me@185.207.105.133:/opt/timetablex/
+scp docker-compose.yml <user>@185.207.105.133:/opt/timetablex/
 ```
 
 ### 2. Create `.env` on the VPS
