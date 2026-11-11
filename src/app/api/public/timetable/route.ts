@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { z } from 'zod';
 import { parseGermanDateStr } from '@/lib/date';
 import { filterEntries } from '@/lib/filterEntries';
@@ -98,6 +99,7 @@ export async function GET(request: Request) {
     if (message.includes('Ungültig')) {
       return NextResponse.json({ error: message }, { status: 401 });
     }
+    Sentry.captureException(e);
     if (message.includes('Verbindung')) {
       return NextResponse.json({ error: message }, { status: 502 });
     }

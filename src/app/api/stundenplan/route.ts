@@ -1,6 +1,7 @@
 import { fetchStundenplan, fetchWeekStundenplan } from '@/lib/stundenplan';
 import { getAuthCredentials } from '@/lib/server/authSession';
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { z } from 'zod';
 
 const RequestSchema = z.object({
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data);
   } catch (e: any) {
+    // Wrong credentials are a user error, not a bug.
+    if (!e?.message?.includes('Ungültig')) Sentry.captureException(e);
     console.error('API Error:', e);
     return NextResponse.json(
       { error: e.message || 'Interner Serverfehler beim Laden des Stundenplans.' },

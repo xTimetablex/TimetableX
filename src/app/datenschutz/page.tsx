@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function DatenschutzPage() {
   return (
-    <LegalDocument title="Datenschutzerklärung" subtitle="Stand: 02.06.2026">
+    <LegalDocument title="Datenschutzerklärung" subtitle="Stand: 11.11.2026">
       <section>
         <h2>1. Verantwortlicher</h2>
         <p>
@@ -90,7 +90,37 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2>6. Weitergabe von Daten</h2>
+        <h2>6. Fehlerüberwachung mit Sentry</h2>
+        <p>
+          Um technische Fehler schnell zu erkennen und zu beheben, wird der Dienst Sentry
+          der Functional Software, Inc. (USA) eingesetzt. Die Daten werden in der
+          EU-Region von Sentry gespeichert.
+        </p>
+        <p>Im Fehlerfall können dabei insbesondere folgende Informationen verarbeitet werden:</p>
+        <ul>
+          <li>Fehlermeldung und technischer Ablauf des Fehlers (Stacktrace)</li>
+          <li>aufgerufene Seite bzw. Schnittstelle und Zeitpunkt</li>
+          <li>Browser-, Betriebssystem- und Geräteinformationen</li>
+          <li>Ladezeiten einzelner Anfragen (für einen Teil der Aufrufe)</li>
+          <li>
+            eine Aufzeichnung der Bildschirminteraktionen kurz vor einem Fehler, in der
+            alle Texte, Eingaben und Bilder unkenntlich gemacht sind
+          </li>
+        </ul>
+        <p>
+          Nicht an Sentry übermittelt werden Ihre Anmeldedaten (insbesondere Passwörter),
+          Cookies und Ihre IP-Adresse: Fehlerberichte aus dem Browser werden über den
+          eigenen Server weitergeleitet, sodass Sentry Ihre IP-Adresse nicht erhält.
+          Sentry speichert keine Cookies oder sonstigen Daten auf Ihrem Gerät.
+        </p>
+        <p>
+          Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO. Das berechtigte Interesse liegt
+          im stabilen und fehlerfreien Betrieb der Website.
+        </p>
+      </section>
+
+      <section>
+        <h2>7. Weitergabe von Daten</h2>
         <p>
           Eine Weitergabe personenbezogener Daten erfolgt nur, soweit dies zur
           technischen Bereitstellung der Website erforderlich ist oder eine gesetzliche
@@ -99,7 +129,7 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2>7. Rechte der betroffenen Personen</h2>
+        <h2>8. Rechte der betroffenen Personen</h2>
         <p>
           Sie haben nach der Datenschutz-Grundverordnung (DSGVO) das Recht auf:
         </p>
@@ -118,7 +148,7 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2>8. Kontakt</h2>
+        <h2>9. Kontakt</h2>
         <p>Bei Fragen zum Datenschutz können Sie sich an folgende Adresse wenden:</p>
         <p>
           <a href="mailto:support@timetablex.space">support@timetablex.space</a>
@@ -126,7 +156,7 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2>9. Änderungen dieser Datenschutzerklärung</h2>
+        <h2>10. Änderungen dieser Datenschutzerklärung</h2>
         <p>
           Diese Datenschutzerklärung kann angepasst werden, wenn sich technische oder
           rechtliche Anforderungen ändern.

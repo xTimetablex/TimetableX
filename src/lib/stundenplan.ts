@@ -193,7 +193,7 @@ async function fetchDayTimetable(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (message.includes('fetch')) {
-      throw new Error('Verbindung zum Server fehlgeschlagen.');
+      throw new Error('Verbindung zum Server fehlgeschlagen.', { cause: error });
     }
     throw error;
   }

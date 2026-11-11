@@ -5,61 +5,128 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-bun run dev      # Start dev server (webpack mode, allows LAN access via 192.168.x.x)
-bun run build    # Production build
-bun run start    # Start production server
-bun run test     # Run Vitest tests
+bun run dev         # Dev server (`next dev --webpack`); LAN access only from IPs in next.config.ts `allowedDevOrigins`
+bun run build       # Production build (`output: 'standalone'`)
+bun run start       # Start production server
+bun run test        # Vitest, single run
+bun run test:watch  # Vitest, watch mode
+bun run lint        # Type check only (`tsc --noEmit`) — there is no ESLint
+bun run doctor      # React Doctor scan (npx react-doctor@latest)
 ```
 
-TypeScript type checking is available via `tsc --noEmit`.
+Run a single test file: `bun run test src/lib/__tests__/date.test.ts` (or `-t "<name>"` to filter by test name).
 
-## Tests
+**Use `bun run test`, never `bun test`.** `bun test` starts Bun's built-in runner instead of Vitest. That runner ignores `vitest.config.ts` (no jsdom, no `vitest.setup.ts`) and has no `vi.stubGlobal`/`vi.unstubAllGlobals`, so the `trackingConsent`, `authMigration` and `weekFailure` tests fail even though the suite is green under Vitest.
 
-Tests live in `src/lib/__tests__/` and run with Vitest (config: `vitest.config.ts`, environment: `node` by default).
+### Package manager gotcha
 
-- **`trackingConsent.test.ts`** — Uses jsdom (`@vitest-environment jsdom`). Tests `readTrackingConsent` and `writeTrackingConsent` from `src/lib/trackingConsent.ts` via real browser cookies: no cookie → `'pending'`; valid values round-trip; unrecognised values fall back to `'pending'`; writing overwrites the previous value.
+Bun runs the scripts, but **`package-lock.json` is the only committed lockfile**. `bun.lock`/`bun.lockb` are gitignored, and `projectAudit.test.ts` fails if either is tracked. CI installs with `bun install --frozen-lockfile` (which reads `package-lock.json`) and the Dockerfile uses `npm ci`. So add or upgrade dependencies with `npm install <pkg>` to keep `package-lock.json` in sync. Node version is 20 (`.nvmrc`, Dockerfile).
 
-- **`date.test.ts`** — Tests six pure date utilities from `src/lib/date.ts`: `formatDateStr` (Date → `YYYYMMDD`, zero-padded), `parseDateStr` (inverse, round-trips), `addDays` (positive/negative, crosses month boundaries, non-mutating), `getWeekStart` (returns the preceding Monday), `getWeekDates` (5 consecutive Mon–Fri dates), `formatWeekLabel` (German "Woche vom D.M - D.M", including cross-month).
+## Stack
 
-- **`filterEntries.test.ts`** — Tests the exported `filterEntries` function from `src/lib/filterEntries.ts` (re-exported from `src/lib/hooks/useTimetable.ts` for backwards compatibility): filtering by `class`, `teacher`, or `room`; empty filter value returns `[]`; results sorted by hour ascending; blacklist excludes one or multiple subjects.
+Next.js 16 (App Router), React 19.2, TypeScript, TanStack Query v5, Zod v4, Tailwind v4, framer-motion (landing page only), lucide-react, `xml2js`, `web-haptics`, `@sentry/nextjs` v11. The UI and all user-facing error messages are in German.
 
 ## Architecture
 
-**TimetableX** is a Next.js 15 (App Router) web app that fetches substitution timetables from `stundenplan24.de` and displays them for German schools.
+**TimetableX** fetches substitution timetables (Vertretungspläne) from `stundenplan24.de` (VPMobil24) and displays them for German schools.
 
-### Data flow
+### Routes
 
-1. `src/app/page.tsx` reads URL search params (`?date=`, `?view=`, `?step=`) and passes them to `ClientViewer`.
-2. `ClientViewer` (`src/components/ClientViewer.tsx`) is the root client component orchestrating all state. It uses three main hooks:
-   - `useAuth` — stores credentials in `localStorage` under key `school_creds`
-   - `useTimetable` — fetches data via `POST /api/stundenplan`, manages filter state (mode + selected value), applies blacklist filtering
-   - `useAvailableSubjects` — fetches available subjects for the blacklist modal
-3. `POST /api/stundenplan` (`src/app/api/stundenplan/route.ts`) validates with Zod then calls `fetchStundenplan` or `fetchWeekStundenplan` from `src/lib/stundenplan.ts`.
-4. `stundenplan.ts` fetches XML from `https://www.stundenplan24.de/{school}/wplan/wdatenk/WPlanKl_{dateStr}.xml` with HTTP Basic Auth, parses it with `xml2js`, and returns typed `TimetableData` / `TimetableWeekData`. For week view it fires 5 parallel day fetches with `Promise.allSettled`.
+| Route | File | Purpose |
+|---|---|---|
+| `/` | `src/app/page.tsx` → `LandingPage` | Marketing landing page. Redirects to `/app` when the user is logged in or the PWA runs in standalone mode. |
+| `/app` | `src/app/app/page.tsx` → `ClientViewer` | The actual timetable app. Reads `?date=YYYYMMDD`, `?view=day\|week`, `?step=selection\|timetable`. |
+| `/datenschutz`, `/impressum` | `src/app/*/page.tsx` → `LegalDocument` | Legal pages |
+| `GET/POST/DELETE /api/auth` | `src/app/api/auth/route.ts` | Read session identity / log in (set cookie) / log out |
+| `POST /api/stundenplan` | `src/app/api/stundenplan/route.ts` | `{ date?, view? }` → `TimetableData` or `TimetableWeekData` |
+| `POST /api/subjects` | `src/app/api/subjects/route.ts` | `{ filterMode, selectedValue }` → subjects seen for that entity over the last 8 weekdays (fetched in batches of 3), used by the blacklist modal |
+| `GET /api/public/timetable` | `src/app/api/public/timetable/route.ts` | Public JSON API using HTTP Basic Auth. Documented in `docs/public-timetable-api.md` |
 
-### View modes
+### Authentication
 
-- **Day view**: `TimetableTable` renders a flat list of filtered `TimetableEntry[]`
-- **Week view**: `WeekTimetableView` renders `filteredDays[]` (each day has its own `filteredEntries`)
-- View mode and date live in the URL; navigation calls `router.push` to update them.
+Credentials (`school`, `user`, `pass`) never live in the browser:
 
-### Filtering and blacklist
+- `POST /api/auth` encrypts them with AES-256-GCM (`src/lib/server/authSession.ts`) into the httpOnly cookie `timetablex_session` (30 days). The key comes from the `TIMETABLEX_AUTH_SECRET` env var (falls back to `AUTH_SECRET` / `NEXTAUTH_SECRET`, then an insecure dev default). Login does **not** validate the credentials against stundenplan24; a bad password only surfaces on the first data fetch.
+- Cookie-authenticated API routes call `getAuthCredentials(request)` and return 401 if it is `null`. The client sends only `{ date, view }` etc., never credentials.
+- The client only ever sees `AuthIdentity` (`{ school, user }`), via `useAuth`.
+- `src/lib/authMigration.ts` exchanges old `localStorage['school_creds']` entries (from before cookie sessions existed) for a session cookie once, then deletes them.
+- The public API instead parses `Authorization: Basic base64("SCHULNUMMER.BENUTZER:PASS")` (`src/lib/server/publicAuth.ts`). The school number is split off at the first dot.
 
-- Filter mode (`class` | `room` | `teacher`) and selected value are persisted in `localStorage`.
-- Blacklist is per-entity, stored in `localStorage` under `timetable_blacklist` as `Record<entityName, subjectName[]>`. Blacklisted subjects are excluded from `filteredEntries`.
+`projectAudit.test.ts` enforces this. It fails if `useAuth.ts` touches `localStorage` or `school_creds`, or if `useTimetable`/`useAvailableSubjects` send `pass` or `...creds` in a request body.
 
-### Styling
+### Data fetching (`src/lib/stundenplan.ts`)
 
-CSS uses Tailwind v4 plus a comprehensive custom design token system defined in `globals.css` (`:root` block). All colors, radii, shadows, and transitions are CSS variables (`--color-primary`, `--color-surface`, etc.) with full dark mode overrides via `@media (prefers-color-scheme: dark)`. Prefer these variables over hardcoded values.
+- Fetches `https://www.stundenplan24.de/{school}/wplan/wdatenk/WPlanKl_{YYYYMMDD}.xml` with Basic Auth and `cache: 'no-store'`, then parses it with `xml2js`. Change flags (`roomChanged`, `teacherChanged`, …) come from the XML `*Ae` attributes. `dayNotes` come from `ZusatzInfo` and `FreieTexte`.
+- HTTP 401 → throws `'Ungültiger Benutzername oder Passwort.'`. Any other non-OK status (no plan published) → returns an **empty day** with `isWeekend` set from the date. Network failure → throws `'Verbindung zum Server fehlgeschlagen.'`
+- `fetchWeekStundenplan` fetches Mon–Fri in parallel with `Promise.allSettled`. **Any** failed day fails the whole week, with the auth error taking priority (covered by `weekFailure.test.ts`). It merges `available{Classes,Rooms,Teachers}` across the days.
+- **Gotcha:** API routes choose HTTP status codes by substring-matching these German messages (`'Ungültig'` → 401, `'Verbindung'` → 502). Changing the wording breaks the status mapping.
 
-### PWA
+### Client state (`/app`)
 
-A service worker (`public/sw.js`) is registered from `layout.tsx`. The app has PWA metadata for iOS home screen installation.
+`ClientViewer` (`src/components/ClientViewer.tsx`) orchestrates everything. It is a two-step flow (`step=selection` → `SelectionMenu`, `step=timetable` → `TimetableTable` or `WeekTimetableView`), and all navigation goes through `router.push('/app?...')`. Day navigation skips weekends; week navigation jumps ±7 days. Cmd/Ctrl+K opens `CommandPalette`.
+
+| Hook | Responsibility | Persistence |
+|---|---|---|
+| `useAuth` | Session identity, login/logout via `/api/auth`, legacy migration | httpOnly cookie |
+| `useTimetable` | TanStack Query fetch of `/api/stundenplan`; filter mode/value; computes `filteredEntries` (day) / `filteredDays` (week); auto-selects the first available value unless the day has no options (weekend/holiday keeps the selection) | `localStorage` `filterMode`, `filterValue` |
+| `useBlacklist` | Per-entity hidden subjects | `localStorage` `timetable_blacklist` = `Record<entity, subject[]>` |
+| `useFavorites` | Up to 4 `{ mode, value }` favorites | `localStorage` `favorites` |
+| `useExtendedEntities` | Fetches the previous 2 weeks so the command palette can find classes/rooms/teachers that don't appear on the current plan | `localStorage` `extended_entities_{school}` (24h TTL) |
+| `useAvailableSubjects` | `/api/subjects` for the blacklist modal | Query cache (30 min) |
+
+`filterEntries` (`src/lib/filterEntries.ts`) is a pure, server-safe function shared by `useTimetable` and the public API. Keep it out of `'use client'` modules. `useTimetable.ts` re-exports it, and also exports `computeIsSelectionAvailable` for tests.
+
+`src/app/providers.tsx` sets up the `QueryClient` (5 min `staleTime`, no refetch on focus), `HapticsProvider` (vibration on pointerdown via `web-haptics`), the cookie consent banner and Umami.
 
 ### Demo mode
 
-Passing `school: 'sample'` or `school: 'demo'` to the API skips the remote fetch and returns `SAMPLE_DATA` from `stundenplan.ts` — useful for local development without real school credentials.
+`school: 'sample'` or `'demo'` skips the remote fetch and returns `SAMPLE_DATA` from `stundenplan.ts` (week view repeats it for all 5 days). Because login doesn't validate credentials, you can log into the local app with school `demo` and any username/password.
 
 ### Analytics
 
-Self-hosted Umami is integrated via `src/app/providers.tsx` (loaded only after consent, via `NEXT_PUBLIC_UMAMI_SRC` / `NEXT_PUBLIC_UMAMI_WEBSITE_ID`). Tracking is gated on `src/lib/trackingConsent.ts`; the consent banner lives in `src/components/CookieConsentBanner.tsx`. Custom events are sent via `track()` in `src/lib/analytics.ts`, which calls `window.umami.track`.
+Self-hosted Umami (`umami.timetablex.space`) is loaded in `providers.tsx` only after the user consents (cookie `timetablex_tracking_consent`, `src/lib/trackingConsent.ts`, `CookieConsentBanner`). `NEXT_PUBLIC_UMAMI_SRC` / `NEXT_PUBLIC_UMAMI_WEBSITE_ID` override hardcoded defaults. Send custom events with `track()` from `src/lib/analytics.ts`, which does nothing when Umami isn't loaded.
+
+### Error monitoring (Sentry)
+
+Sentry project `vectrum-vs/timetablex`, EU region (`de.sentry.io`). It reports errors, 10% of traces in production (100% in dev), and Session Replay only for sessions that hit an error.
+
+| File | Role |
+|---|---|
+| `src/lib/sentryOptions.ts` | DSN, environment, sample rates and `dataCollection`, shared by browser and server |
+| `src/instrumentation-client.ts` | Browser SDK + Replay. Runs for every visitor **without consent** (legitimate interest), so it must not write to the device: hence `stickySession: false` |
+| `src/instrumentation.ts`, `src/sentry.server.config.ts` | Node SDK (no edge runtime is used). `onRequestError` reports uncaught route/render errors. `tracePropagationTargets: []` keeps trace headers off requests to stundenplan24 |
+| `src/app/global-error.tsx` | Root error boundary (German fallback UI) |
+| `src/app/sentry-tunnel/route.ts` + `tunnelRoute` in `next.config.ts` | Browser events go through our server ("handler mode"), so Sentry never sees user IPs and ad blockers don't drop events |
+
+- **Credential gotcha:** Sentry's built-in scrubbing matches `password`/`pwd` but **not `pass`**, the key this app uses everywhere. `dataCollection` therefore switches off request bodies, cookies, the `cookie`/`x-forwarded-for` headers, user info/IPs and stack-frame local variables. Don't loosen these, and never `Sentry.setUser()`/`setContext()` with credentials. Any change to them is a privacy change that `src/app/datenschutz/page.tsx` §6 must reflect.
+- Route handlers that catch errors call `Sentry.captureException` themselves (except `'Ungültig'` auth errors, which are user mistakes). Errors that escape a handler are reported by `onRequestError`.
+- The DSN comes only from `NEXT_PUBLIC_SENTRY_DSN`. Without it the SDK does nothing, so local dev doesn't report unless you set it in `.env.local`. Test events show up with `environment: development`.
+- Expect Sentry's Dedupe integration to drop an error identical to the one just before it (same root-cause stack), e.g. repeated stundenplan24 connection failures from different routes.
+
+### PWA
+
+The manifest is `src/app/manifest.ts` (`start_url: '/app'`). There is **no service worker**: `layout.tsx` actively unregisters any previously installed one, and `projectAudit.test.ts` fails if `register('/sw.js')` reappears. Don't re-add offline caching without removing that guard on purpose.
+
+### Styling
+
+Tailwind v4 plus a design token system in `src/app/globals.css`. All colors, radii, shadows and transitions are CSS variables on `:root` (`--color-primary`, `--color-surface`, …), exposed to Tailwind via `@theme inline`. Dark mode overrides live under `@media (prefers-color-scheme: dark)`. Fonts are Atkinson Hyperlegible (body) and Fraunces (display). Prefer the variables over hardcoded values. The landing page uses framer-motion through `LazyMotion` + `MotionConfig reducedMotion="user"`, with shared variants in `src/lib/motionVariants.ts` and fake data in `src/lib/mockTimetableData.ts`.
+
+## Tests
+
+Tests live in `src/lib/__tests__/` and run under Vitest (`vitest.config.ts`: `node` environment, tsconfig path aliases, `vitest.setup.ts`). Files that need a DOM opt in with `// @vitest-environment jsdom` (`trackingConsent`, `authMigration`). `vitest.setup.ts` polyfills `localStorage`/`sessionStorage` for jsdom, because Node 26+ defines a broken global that stops jsdom from installing its own.
+
+- Pure units: `date`, `filterEntries`, `isSelectionAvailable`, `authSession`, `publicAuth`, `trackingConsent`, `authMigration` (mocks `fetch`)
+- Route/integration: `publicTimetableRoute` (calls the route handler directly using demo credentials), `weekFailure` (mocks `fetch` to check week-level error propagation)
+- `projectAudit`: static checks on the repo itself (npm-only lockfile, Next version pin, postcss override, `allowedDevOrigins`, no plaintext credentials client-side, no service worker). If you intentionally change one of these, update the test in the same change.
+
+## CI & deployment
+
+- `.github/workflows/test.yml`: `bun run test` on every push and PR.
+- `.github/workflows/react-doctor.yml`: advisory React Doctor scan on PRs and pushes to `main`. It never blocks.
+- `.github/workflows/deploy.yml`: triggered by **publishing a GitHub Release**. It runs tests, then React Doctor (non-blocking), then builds the Docker image and pushes it to `ghcr.io/xtimetablex/timetablex` (tags `latest` and the release tag). Watchtower on the VPS (`docker-compose.yml`, polls every 30 min) pulls the image and restarts the container. The app sits behind Caddy on the external `caddy-public` network.
+- `NEXT_PUBLIC_*` vars are inlined at **build time** (Docker build args in `deploy.yml`, including `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_RELEASE` = the release tag). Runtime secrets such as `TIMETABLEX_AUTH_SECRET` come from `/opt/timetablex/.env` on the VPS. See `DEPLOY.md` for the one-time server setup.
+- Source maps are uploaded to Sentry during `next build` only when `SENTRY_AUTH_TOKEN` is set. In CI it comes from the GitHub secret of the same name, passed as a BuildKit secret (`RUN --mount=type=secret` in the Dockerfile) so it never ends up in an image layer. Without the token the build still succeeds; stack traces just stay minified.
+
+## Design docs
+
+Feature specs and implementation plans are in `docs/superpowers/{specs,plans}/`, named `YYYY-MM-DD-<feature>`. `2026-07-12-push-notifications-and-ical-export-design.md` is a **design only, not implemented yet**: there is no database, push or iCal code.

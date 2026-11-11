@@ -101,7 +101,20 @@ This requires the `ghcr.io/xtimetablex/timetablex` image to exist (i.e. a releas
 published at least once) and step 3's `docker login` to have succeeded if the package is
 private.
 
+### 7. Sentry source maps (GitHub secret)
+
+Error monitoring works without this step. It only makes stack traces readable.
+
+1. In Sentry, go to **vectrum-vs → Settings → Auth Tokens → Create New Token** (an organization
+   token; the default scopes are enough for source map upload).
+2. In GitHub, go to **Settings → Secrets and variables → Actions → New repository secret**,
+   name it `SENTRY_AUTH_TOKEN`, and paste the token.
+
+The `deploy` workflow passes it into the Docker build as a BuildKit secret, so it never ends up
+in the image. The Sentry DSN is public and is already set as a build arg in `deploy.yml`.
+
 ## Future deploys
 
 Publish a new GitHub Release → Actions runs tests → builds the image → pushes to GHCR →
-Watchtower picks it up within 60 seconds and redeploys `web` automatically.
+Watchtower picks it up within 30 minutes (`WATCHTOWER_POLL_INTERVAL=1800` in
+`docker-compose.yml`) and redeploys `web` automatically.
