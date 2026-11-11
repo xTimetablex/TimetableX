@@ -86,6 +86,8 @@ Credentials (`school`, `user`, `pass`) never live in the browser:
 
 Self-hosted Umami (`umami.timetablex.space`) is loaded in `providers.tsx` only after the user consents (cookie `timetablex_tracking_consent`, `src/lib/trackingConsent.ts`, `CookieConsentBanner`). `NEXT_PUBLIC_UMAMI_SRC` / `NEXT_PUBLIC_UMAMI_WEBSITE_ID` override hardcoded defaults. Send custom events with `track()` from `src/lib/analytics.ts`, which does nothing when Umami isn't loaded.
 
+**Currently broken (as of 2026-11-11):** `umami.timetablex.space` has no DNS record and no Umami instance is running, so no analytics are collected. PostHog was replaced by Umami in `03d689a`.
+
 ### Error monitoring (Sentry)
 
 Sentry project `vectrum-vs/timetablex`, EU region (`de.sentry.io`). It reports errors, 10% of traces in production (100% in dev), and Session Replay only for sessions that hit an error.
@@ -123,9 +125,10 @@ Tests live in `src/lib/__tests__/` and run under Vitest (`vitest.config.ts`: `no
 
 - `.github/workflows/test.yml`: `bun run test` on every push and PR.
 - `.github/workflows/react-doctor.yml`: advisory React Doctor scan on PRs and pushes to `main`. It never blocks.
-- `.github/workflows/deploy.yml`: triggered by **publishing a GitHub Release**. It runs tests, then React Doctor (non-blocking), then builds the Docker image and pushes it to `ghcr.io/xtimetablex/timetablex` (tags `latest` and the release tag). Watchtower on the VPS (`docker-compose.yml`, polls every 30 min) pulls the image and restarts the container. The app sits behind Caddy on the external `caddy-public` network.
-- `NEXT_PUBLIC_*` vars are inlined at **build time** (Docker build args in `deploy.yml`, including `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_RELEASE` = the release tag). Runtime secrets such as `TIMETABLEX_AUTH_SECRET` come from `/opt/timetablex/.env` on the VPS. See `DEPLOY.md` for the one-time server setup.
-- Source maps are uploaded to Sentry during `next build` only when `SENTRY_AUTH_TOKEN` is set. In CI it comes from the GitHub secret of the same name, passed as a BuildKit secret (`RUN --mount=type=secret` in the Dockerfile) so it never ends up in an image layer. Without the token the build still succeeds; stack traces just stay minified.
+- `.github/workflows/deploy.yml`: triggered by **publishing a GitHub Release** (tags like `1.2.3`, no `v`). It runs tests, then React Doctor (non-blocking), then builds the Docker image and pushes it to `ghcr.io/xtimetablex/timetablex` (tags `latest` and the release tag). Finally it POSTs to an **Openship incoming deploy webhook** (`OPENSHIP_DEPLOY_HOOK_URL`/`_TOKEN` secrets).
+- Production runs on **Openship** (self-hosted PaaS, dashboard `dash.timetablex.space`, project `TimetableX`). The project uses a *release image* source: it deploys `ghcr.io/xtimetablex/timetablex:{tag}` for the latest GitHub Release and never builds from git. Openship doesn't redeploy on new releases by itself, which is why the webhook exists. There is no Watchtower or Caddy.
+- `NEXT_PUBLIC_*` vars are inlined at **build time** (Docker build args in `deploy.yml`, including `NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_RELEASE` = the release tag). Runtime secrets such as `TIMETABLEX_AUTH_SECRET` are project env vars in Openship. See `DEPLOY.md`.
+- Source maps are uploaded to Sentry during `next build` only when `SENTRY_AUTH_TOKEN` is set. In CI it comes from the GitHub secret of the same name, passed as a BuildKit secret (`RUN --mount=type=secret` in the Dockerfile) so it never ends up in an image layer. Without the token the build still succeeds; stack traces just stay minified. The secret mount needs BuildKit, so Openship's legacy-builder git builds can't build this Dockerfile.
 
 ## Design docs
 

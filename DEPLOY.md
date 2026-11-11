@@ -1,120 +1,63 @@
 # Deployment
 
-TimetableX ships as a Docker image built by CI and deployed via Watchtower (pull-based — no
-inbound SSH from GitHub required).
+Production (`timetablex.space`) runs on the VPS `185.207.105.133` under **Openship**, a self-hosted
+deployment platform. Its dashboard is at https://dash.timetablex.space. The Openship project
+**TimetableX** (`proj_yHp96pH-btfnueGl`) doesn't build anything itself. It deploys the prebuilt
+image that GitHub Actions publishes for each GitHub Release.
 
-## One-time VPS setup
+## How a release goes live
 
-These steps only need to be done once on the VPS (`/opt/timetablex`).
+1. Publish a GitHub Release (tags look like `1.2.3`, without a `v`).
+2. `.github/workflows/deploy.yml` runs the tests, then React Doctor (advisory), then builds the
+   Docker image and pushes `ghcr.io/xtimetablex/timetablex:<tag>` and `:latest`.
+3. The last step POSTs to the Openship project's incoming **deploy webhook**.
+4. Openship resolves the latest GitHub Release of `xTimetablex/TimetableX`, pulls
+   `ghcr.io/xtimetablex/timetablex:{tag}`, and swaps the container. The old container keeps
+   serving until the new image has been pulled.
 
-> **Note:** The Docker daemon on this VPS is rootful, listening on `/var/run/docker.sock`
-> (owned by `root:docker`). The deploy user is not in the `docker` group, so run `docker` /
-> `docker compose` commands with `sudo` — this matches the `/var/run/docker.sock` and
-> `/root/.docker/config.json` paths already referenced in `docker-compose.yml`.
+Openship v0.9.3 notices new releases ("update available") but doesn't deploy them on its own
+(`trackReleases` is reserved and unused). The webhook in step 3 is what makes deploys automatic.
 
-### 1. Copy files to the VPS
+## Configuration
 
-```bash
-scp docker-compose.yml <user>@185.207.105.133:/opt/timetablex/
-```
+**GitHub repository secrets:**
 
-### 2. Create `.env` on the VPS
+| Secret | Purpose |
+|---|---|
+| `OPENSHIP_DEPLOY_HOOK_URL` | Incoming webhook URL (via the dashboard proxy, `…/api/webhooks/incoming/iwh_…`) |
+| `OPENSHIP_DEPLOY_HOOK_TOKEN` | Bearer token for that webhook. Rotate it in Openship under the project's incoming webhooks |
+| `SENTRY_AUTH_TOKEN` | Optional. Sentry organization token for source map upload, passed into the Docker build as a BuildKit secret |
 
-```bash
-sudo mkdir -p /opt/timetablex
-sudo nano /opt/timetablex/.env
-```
+**Build-time values** (`NEXT_PUBLIC_*`, `SENTRY_RELEASE`) are Docker build args in `deploy.yml`.
+They're inlined into the bundle, so changing them needs a new release.
 
-Required variable:
+**Runtime env, set in Openship** (project → Environment → production):
 
-- `TIMETABLEX_AUTH_SECRET` — random secret used to encrypt the session cookie that stores school
-  login credentials. Generate with `openssl rand -hex 32`. Without it the app falls back to an
-  insecure built-in development secret.
+| Variable | Purpose |
+|---|---|
+| `TIMETABLEX_AUTH_SECRET` (secret) | Key for the encrypted session cookie. Without it the app falls back to a public dev key. Changing it logs every user out once |
 
-`NEXT_PUBLIC_*` variables (e.g. `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_UMAMI_*`) are inlined at
-**build time** by the `deploy` workflow, not read from this `.env`.
+**Image pull access:** the GHCR package is private, so Openship needs a **Container registry**
+credential for `ghcr.io` (Settings → Credentials), using a GitHub token with `read:packages`.
+The alternative is making the package public.
 
-### 3. Authenticate Docker with GHCR
+## Manual operations
 
-Generate a GitHub Personal Access Token with **`read:packages`** scope only, then on the VPS:
+- **Redeploy or update now:** in the Openship dashboard, open the project → Deploy / Update. Or
+  fire the webhook yourself:
+  `curl -X POST -H "Authorization: Bearer $TOKEN" "$OPENSHIP_DEPLOY_HOOK_URL"`.
+- **Roll back:** in the Openship dashboard, open the project → Deployments → pick an earlier
+  deployment → Rollback.
+- **Pin a version:** set a pinned version on the project's release image source. Remove the pin to
+  go back to tracking the latest release.
 
-```bash
-echo YOUR_GITHUB_PAT | sudo docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
-```
-
-This writes credentials to `/root/.docker/config.json`, which Watchtower mounts read-only to
-pull new images.
-
-### 4. Set package visibility (if the repo is private)
-
-Go to GitHub → the `timetablex` package → Package settings → make it public, or ensure the PAT
-above has access to the package.
-
-### 5. Set up Caddy and the `caddy-public` network
-
-This VPS does not yet have a reverse proxy running. Create the shared network and a Caddy
-container that `web` will join:
+## Local Docker build
 
 ```bash
-sudo docker network create caddy-public
+docker build -t timetablex --build-arg NEXT_PUBLIC_SENTRY_DSN=... .
+docker run -p 3000:3000 -e TIMETABLEX_AUTH_SECRET=$(openssl rand -hex 32) timetablex
 ```
 
-Add a `Caddyfile` (e.g. `/opt/caddy/Caddyfile`) containing:
-
-```caddy
-timetablex.space {
-  reverse_proxy web:3000
-}
-```
-
-Run Caddy on the `caddy-public` network with ports 80/443 published and the `Caddyfile` mounted,
-e.g.:
-
-```bash
-sudo docker run -d --name caddy --restart unless-stopped \
-  --network caddy-public \
-  -p 80:80 -p 443:443 \
-  -v /opt/caddy/Caddyfile:/etc/caddy/Caddyfile \
-  -v caddy_data:/data \
-  caddy:2-alpine
-```
-
-Caddy handles HTTPS/TLS automatically via Let's Encrypt, **but only once `timetablex.space`
-resolves to this VPS's IP** via Cloudflare DNS. Until the DNS record is updated, Caddy will keep
-retrying the ACME challenge in the background — update the `A`/`AAAA` record and it will pick up
-a certificate automatically.
-
-To reload Caddy after editing the `Caddyfile`:
-
-```bash
-sudo docker exec caddy caddy reload --config /etc/caddy/Caddyfile
-```
-
-### 6. Start the stack
-
-```bash
-cd /opt/timetablex
-sudo docker compose up -d
-```
-
-This requires the `ghcr.io/xtimetablex/timetablex` image to exist (i.e. a release has been
-published at least once) and step 3's `docker login` to have succeeded if the package is
-private.
-
-### 7. Sentry source maps (GitHub secret)
-
-Error monitoring works without this step. It only makes stack traces readable.
-
-1. In Sentry, go to **vectrum-vs → Settings → Auth Tokens → Create New Token** (an organization
-   token; the default scopes are enough for source map upload).
-2. In GitHub, go to **Settings → Secrets and variables → Actions → New repository secret**,
-   name it `SENTRY_AUTH_TOKEN`, and paste the token.
-
-The `deploy` workflow passes it into the Docker build as a BuildKit secret, so it never ends up
-in the image. The Sentry DSN is public and is already set as a build arg in `deploy.yml`.
-
-## Future deploys
-
-Publish a new GitHub Release → Actions runs tests → builds the image → pushes to GHCR →
-Watchtower picks it up within 30 minutes (`WATCHTOWER_POLL_INTERVAL=1800` in
-`docker-compose.yml`) and redeploys `web` automatically.
+The Dockerfile uses `RUN --mount=type=secret`, which needs BuildKit, the default for `docker
+build` in current Docker. Openship's own git builds use the legacy builder and can't build this
+Dockerfile. That's one more reason production deploys the prebuilt image.

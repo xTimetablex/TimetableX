@@ -60,3 +60,15 @@ jobs:
           tags: |
             ghcr.io/${{ env.IMAGE_NAME }}:latest
             ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+
+      # Production runs on Openship (project "TimetableX"), which tracks GitHub
+      # Releases and deploys ghcr.io/xtimetablex/timetablex:{tag}. Openship
+      # doesn't redeploy on its own when a release is published, so this calls
+      # the project's incoming "deploy" webhook once the image exists.
+      - name: Trigger Openship deploy
+        env:
+          HOOK_URL: ${{ secrets.OPENSHIP_DEPLOY_HOOK_URL }}
+          HOOK_TOKEN: ${{ secrets.OPENSHIP_DEPLOY_HOOK_TOKEN }}
+        run: |
+          curl --fail-with-body -sS --retry 3 --retry-all-errors --max-time 60 \
+            -X POST -H "Authorization: Bearer $HOOK_TOKEN" "$HOOK_URL"
