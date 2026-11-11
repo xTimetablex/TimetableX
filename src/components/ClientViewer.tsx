@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle, Calendar, CheckCircle2, RefreshCw } from 'lucide-react';
 
 import CommandPalette from './CommandPalette';
+import ConsentSettingsButton from './ConsentSettingsButton';
 import LoginForm from './LoginForm';
 import SelectionMenu from './SelectionMenu';
 import TimetableHeader from './TimetableHeader';
@@ -393,6 +394,7 @@ export default function ClientViewer({ currentDateStr, currentViewMode = 'day', 
           >
             Impressum
           </Link>
+          <ConsentSettingsButton />
         </nav>
       </footer>
     </div>

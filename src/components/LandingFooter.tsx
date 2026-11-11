@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { m } from 'framer-motion';
+import ConsentSettingsButton from './ConsentSettingsButton';
 
 export default function LandingFooter() {
   return (
@@ -21,6 +22,7 @@ export default function LandingFooter() {
         <Link href="/impressum" className="transition-colors hover:text-[var(--color-text)]">
           Impressum
         </Link>
+        <ConsentSettingsButton />
       </nav>
     </m.footer>
   );

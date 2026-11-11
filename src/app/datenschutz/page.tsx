@@ -34,7 +34,7 @@ export default function DatenschutzPage() {
         </p>
         <p>
           Für die Webanalyse wird ein Cookie-Banner eingesetzt. Analyse-Cookies können
-          abgelehnt werden; in diesem Fall wird Umami nicht aktiviert.
+          abgelehnt werden; in diesem Fall wird PostHog nicht geladen.
         </p>
       </section>
 
@@ -65,27 +65,31 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2>5. Webanalyse mit Umami</h2>
+        <h2>5. Webanalyse mit PostHog</h2>
         <p>
-          Diese Website verwendet ein selbst gehostetes Umami zur Analyse der Nutzung
-          der Website und zur Verbesserung des Angebots, sofern Sie der Analyse
-          zugestimmt haben.
+          Sofern Sie im Cookie-Banner zugestimmt haben, verwendet diese Website PostHog
+          der PostHog, Inc. (USA) zur Analyse der Nutzung und zur Verbesserung des
+          Angebots. Die Daten werden in der EU-Region von PostHog gespeichert.
         </p>
         <p>Dabei können insbesondere folgende Informationen verarbeitet werden:</p>
         <ul>
-          <li>aufgerufene Seiten</li>
+          <li>aufgerufene Seiten und die zuvor besuchte Seite (Referrer)</li>
+          <li>Interaktionen innerhalb der Website, z. B. Klicks</li>
           <li>Browser- und Geräteinformationen</li>
-          <li>technische Nutzungsdaten</li>
-          <li>Interaktionen innerhalb der Website</li>
+          <li>ungefährer Standort, abgeleitet aus Ihrer IP-Adresse</li>
         </ul>
         <p>
-          Umami wird auf einem eigenen Server betrieben. Es werden keine Daten an
-          Drittanbieter übermittelt. Umami arbeitet ohne Cookies und ohne dauerhafte
-          Identifizierung einzelner Geräte.
+          PostHog speichert dazu in Ihrem Browser ein Cookie und einen Eintrag im lokalen
+          Speicher mit einer zufälligen Kennung, um wiederkehrende Besuche zu erkennen.
+          Die Daten werden über den eigenen Server an PostHog weitergeleitet. Es werden
+          keine Bildschirmaufzeichnungen erstellt und keine Anmeldedaten übermittelt.
         </p>
         <p>
-          Die Analyse dient ausschließlich der Verbesserung der Website und ihrer
-          Funktionen.
+          Ohne Ihre Zustimmung wird PostHog nicht geladen und es werden keine Daten an
+          PostHog übermittelt. Rechtsgrundlage ist Ihre Einwilligung (Art. 6 Abs. 1
+          lit. a DSGVO, § 25 Abs. 1 TDDDG). Sie können Ihre Auswahl jederzeit über den
+          Link „Cookies“ im Seitenfuß ändern und die Einwilligung so widerrufen. Dabei
+          werden die von PostHog gespeicherten Daten aus Ihrem Browser entfernt.
         </p>
       </section>
 

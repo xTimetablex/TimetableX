@@ -54,6 +54,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_APP_URL=https://timetablex.space
             NEXT_PUBLIC_SENTRY_DSN=https://c08cdaa0d0cd0eb1a55090420e45894d@o4512233973350400.ingest.de.sentry.io/4512414118051921
+            NEXT_PUBLIC_POSTHOG_KEY=phc_TZ1ZS5hc7g3GXcT2z8uX63IP9azUaBCf2SFolV7aTct
             SENTRY_RELEASE=${{ github.ref_name }}
           secrets: |
             sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}

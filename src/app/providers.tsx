@@ -1,15 +1,13 @@
 'use client'
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import type { ReactNode } from "react"
-import Script from "next/script"
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import HapticsProvider from '@/components/HapticsProvider'
 import CookieConsentBanner from '@/components/CookieConsentBanner'
+import { disableAnalytics, initAnalytics } from '@/lib/analytics'
+import { ConsentSettingsContext } from '@/lib/hooks/useConsentSettings'
 import { readTrackingConsent, writeTrackingConsent, type TrackingConsent } from '@/lib/trackingConsent'
-
-const UMAMI_SRC = process.env.NEXT_PUBLIC_UMAMI_SRC || "https://umami.timetablex.space/script.js"
-const UMAMI_WEBSITE_ID = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID || "11bdbe02-20da-4968-aaab-be2b205522da"
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -22,37 +20,50 @@ export function Providers({ children }: { children: ReactNode }) {
   }));
   const [trackingConsent, setTrackingConsent] = useState<TrackingConsent>("pending");
   const [isConsentLoaded, setIsConsentLoaded] = useState(false);
+  // Reopened from the "Cookies" footer link to change an earlier choice.
+  const [isConsentSettingsOpen, setIsConsentSettingsOpen] = useState(false);
 
   useEffect(() => {
     setTrackingConsent(readTrackingConsent());
     setIsConsentLoaded(true);
   }, []);
 
+  // PostHog is only downloaded and started once the user has accepted tracking.
+  useEffect(() => {
+    if (trackingConsent === "accepted") void initAnalytics();
+  }, [trackingConsent]);
+
+  const openConsentSettings = useCallback(() => setIsConsentSettingsOpen(true), []);
+
   const handleAcceptTracking = () => {
     writeTrackingConsent("accepted");
     setTrackingConsent("accepted");
+    setIsConsentSettingsOpen(false);
   };
 
   const handleRejectTracking = () => {
     writeTrackingConsent("rejected");
     setTrackingConsent("rejected");
+    setIsConsentSettingsOpen(false);
+    // Withdrawn after PostHog already ran in this page: reload so it's fully gone.
+    if (disableAnalytics()) window.location.reload();
   };
 
-  const shouldShowBanner = isConsentLoaded && trackingConsent === "pending";
+  const shouldShowBanner =
+    isConsentLoaded && (trackingConsent === "pending" || isConsentSettingsOpen);
 
   return (
     <QueryClientProvider client={queryClient}>
-      {isConsentLoaded && trackingConsent === "accepted" ? (
-        <Script src={UMAMI_SRC} data-website-id={UMAMI_WEBSITE_ID} strategy="afterInteractive" />
-      ) : null}
-      <HapticsProvider />
-      {children}
-      {shouldShowBanner ? (
-        <CookieConsentBanner
-          onAccept={handleAcceptTracking}
-          onReject={handleRejectTracking}
-        />
-      ) : null}
+      <ConsentSettingsContext.Provider value={openConsentSettings}>
+        <HapticsProvider />
+        {children}
+        {shouldShowBanner ? (
+          <CookieConsentBanner
+            onAccept={handleAcceptTracking}
+            onReject={handleRejectTracking}
+          />
+        ) : null}
+      </ConsentSettingsContext.Provider>
     </QueryClientProvider>
   )
 }

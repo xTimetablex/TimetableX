@@ -28,8 +28,9 @@ Openship v0.9.3 notices new releases ("update available") but doesn't deploy the
 | `OPENSHIP_DEPLOY_HOOK_TOKEN` | Bearer token for that webhook. Rotate it in Openship under the project's incoming webhooks |
 | `SENTRY_AUTH_TOKEN` | Optional. Sentry organization token for source map upload, passed into the Docker build as a BuildKit secret |
 
-**Build-time values** (`NEXT_PUBLIC_*`, `SENTRY_RELEASE`) are Docker build args in `deploy.yml`.
-They're inlined into the bundle, so changing them needs a new release.
+**Build-time values** (`NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_POSTHOG_KEY`, `SENTRY_RELEASE`) are
+Docker build args in `deploy.yml`. The DSN and the PostHog project key are public client keys. They're
+inlined into the bundle, so changing them needs a new release.
 
 **Runtime env, set in Openship** (project → Environment → production):
 

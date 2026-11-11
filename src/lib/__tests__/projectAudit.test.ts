@@ -55,6 +55,17 @@ describe('project audit regressions', () => {
     expect(useAvailableSubjects).not.toMatch(/body:\s*JSON\.stringify\([\s\S]*pass/);
   });
 
+  it('only loads PostHog lazily, after tracking consent', () => {
+    const providers = read('src/app/providers.tsx');
+    const analytics = read('src/lib/analytics.ts');
+
+    // A static import would ship and start PostHog before the user consented.
+    expect(providers).not.toMatch(/from ['"]posthog-js/);
+    expect(analytics).not.toMatch(/^import (?!type)[^\n]*['"]posthog-js['"]/m);
+    expect(analytics).toContain("import('posthog-js')");
+    expect(providers).toMatch(/trackingConsent === ["']accepted["']\) void initAnalytics\(\)/);
+  });
+
   it('does not register the stale offline service worker', () => {
     const layout = read('src/app/layout.tsx');
 

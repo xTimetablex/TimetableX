@@ -24,7 +24,7 @@ Bun runs the scripts, but **`package-lock.json` is the only committed lockfile**
 
 ## Stack
 
-Next.js 16 (App Router), React 19.2, TypeScript, TanStack Query v5, Zod v4, Tailwind v4, framer-motion (landing page only), lucide-react, `xml2js`, `web-haptics`, `@sentry/nextjs` v11. The UI and all user-facing error messages are in German.
+Next.js 16 (App Router), React 19.2, TypeScript, TanStack Query v5, Zod v4, Tailwind v4, framer-motion (landing page only), lucide-react, `xml2js`, `web-haptics`, `@sentry/nextjs` v11, `posthog-js` (lazy-loaded). The UI and all user-facing error messages are in German.
 
 ## Architecture
 
@@ -76,7 +76,7 @@ Credentials (`school`, `user`, `pass`) never live in the browser:
 
 `filterEntries` (`src/lib/filterEntries.ts`) is a pure, server-safe function shared by `useTimetable` and the public API. Keep it out of `'use client'` modules. `useTimetable.ts` re-exports it, and also exports `computeIsSelectionAvailable` for tests.
 
-`src/app/providers.tsx` sets up the `QueryClient` (5 min `staleTime`, no refetch on focus), `HapticsProvider` (vibration on pointerdown via `web-haptics`), the cookie consent banner and Umami.
+`src/app/providers.tsx` sets up the `QueryClient` (5 min `staleTime`, no refetch on focus), `HapticsProvider` (vibration on pointerdown via `web-haptics`), the cookie consent banner, and starts PostHog once consent is `accepted`.
 
 ### Demo mode
 
@@ -84,9 +84,14 @@ Credentials (`school`, `user`, `pass`) never live in the browser:
 
 ### Analytics
 
-Self-hosted Umami (`umami.timetablex.space`) is loaded in `providers.tsx` only after the user consents (cookie `timetablex_tracking_consent`, `src/lib/trackingConsent.ts`, `CookieConsentBanner`). `NEXT_PUBLIC_UMAMI_SRC` / `NEXT_PUBLIC_UMAMI_WEBSITE_ID` override hardcoded defaults. Send custom events with `track()` from `src/lib/analytics.ts`, which does nothing when Umami isn't loaded.
+PostHog Cloud **EU** (project ID 143991), consent-gated via the cookie `timetablex_tracking_consent` (`src/lib/trackingConsent.ts`, `CookieConsentBanner`).
 
-**Currently broken (as of 2026-11-11):** `umami.timetablex.space` has no DNS record and no Umami instance is running, so no analytics are collected. PostHog was replaced by Umami in `03d689a`.
+- `src/lib/analytics.ts`: `initAnalytics()` **dynamically imports** `posthog-js` and calls `init`. `providers.tsx` calls it only when consent is `accepted`. Until then no PostHog code is downloaded and nothing is stored on the device. `projectAudit.test.ts` fails on a static `posthog-js` import.
+- `track(event, props)` is the only way to send custom events. It drops events until PostHog has loaded.
+- Traffic goes through a **same-origin reverse proxy** at `/ttx` (`POSTHOG_PROXY_PATH`, rewrites in `next.config.ts` → `eu-assets.i.posthog.com` / `eu.i.posthog.com`, plus `skipTrailingSlashRedirect`). Don't rename it to something generic like `/analytics` or `/posthog`, which blockers match. Earlier attempts used custom subdomains (`z.`, `umami.timetablex.space`) that never had DNS, so nothing was collected from June to November 2026.
+- Config: anonymous events (`person_profiles: 'identified_only'`, we never `identify`), no session recording (Sentry does masked replays), no surveys, `defaults` pinned to a date.
+- The key comes only from `NEXT_PUBLIC_POSTHOG_KEY` (a build arg in `deploy.yml`). Without it nothing loads, so local dev sends nothing unless you set it in `.env.local`.
+- Changing what's collected is a privacy change: update `src/app/datenschutz/page.tsx` §5.
 
 ### Error monitoring (Sentry)
 

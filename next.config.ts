@@ -1,9 +1,23 @@
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs/config';
+import { POSTHOG_PROXY_PATH } from './src/lib/analytics';
 
 const baseConfig: NextConfig = {
   output: 'standalone',
   allowedDevOrigins: ['192.168.2.62', '192.168.0.114'],
+
+  // Same-origin reverse proxy to PostHog EU, so analytics need no extra
+  // (sub)domain and aren't dropped by blockers. The static/array rules must
+  // come before the catch-all.
+  async rewrites() {
+    return [
+      { source: `${POSTHOG_PROXY_PATH}/static/:path*`, destination: 'https://eu-assets.i.posthog.com/static/:path*' },
+      { source: `${POSTHOG_PROXY_PATH}/array/:path*`, destination: 'https://eu-assets.i.posthog.com/array/:path*' },
+      { source: `${POSTHOG_PROXY_PATH}/:path*`, destination: 'https://eu.i.posthog.com/:path*' },
+    ];
+  },
+  // PostHog's endpoints end in a slash (e.g. /e/); a 308 redirect would break them.
+  skipTrailingSlashRedirect: true,
   // Sentry registers an ESM loader hook at runtime that Next's file tracing can't
   // see, so standalone (Docker) builds miss the ESM builds it imports and log
   // "Failed to register diagnostics-channel injection hooks" (fewer server spans).
