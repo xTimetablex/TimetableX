@@ -11,8 +11,8 @@ describe('project audit regressions', () => {
     const pkg = JSON.parse(read('package.json'));
 
     expect(pkg.scripts.lint).toBe('tsc --noEmit');
-    expect(pkg.dependencies.next).toBe('^16.2.9');
-    expect(pkg.overrides.postcss).toBe('^8.5.15');
+    expect(pkg.dependencies.next).toBe('^16.4.6');
+    expect(pkg.overrides.postcss).toBe('^8.5.32');
   });
 
   it('uses npm as the single package lock source', () => {
