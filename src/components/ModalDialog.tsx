@@ -38,6 +38,9 @@ export function ModalDialog({ onClose, getInitialFocus, children, ...aria }: Mod
 
     return () => {
       target.autofocus = false;
+      // This runs before React removes the <dialog>, while the page behind it
+      // is still inert and can't take focus: leave the top layer first.
+      if (dialog.open) dialog.close();
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
   }, []);
@@ -52,8 +55,12 @@ export function ModalDialog({ onClose, getInitialFocus, children, ...aria }: Mod
         event.preventDefault();
         onClose();
       }}
-      // The browser may still close it directly (e.g. repeated Escape).
-      onClose={onClose}
+      // The browser may still close it directly (e.g. repeated Escape). The
+      // event is async: ignore it once unmounted (the cleanup above closed it)
+      // or when it is open again (StrictMode's effect re-run in dev).
+      onClose={() => {
+        if (dialogRef.current && !dialogRef.current.open) onClose();
+      }}
       className="modal-dialog fixed inset-0 z-[100] m-0 h-full max-h-none w-full max-w-none items-start justify-center border-0 bg-transparent px-4 pt-[6vh] text-inherit outline-none open:flex sm:pt-[10vh]"
     >
       <div className="fixed inset-0 palette-backdrop" onClick={onClose} aria-hidden="true" />
