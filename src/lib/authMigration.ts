@@ -2,6 +2,14 @@ import { AuthIdentity, Credentials } from '@/lib/types';
 
 const LEGACY_STORAGE_KEY = 'school_creds';
 
+export function hasLegacyCredentials(): boolean {
+  try {
+    return localStorage.getItem(LEGACY_STORAGE_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export async function migrateLegacyCredentials(): Promise<AuthIdentity | null> {
   const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
   if (!raw) return null;
@@ -26,7 +34,12 @@ export async function migrateLegacyCredentials(): Promise<AuthIdentity | null> {
   }
 
   if (!res.ok) {
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    // Login now checks the credentials against stundenplan24. Only drop them
+    // when they were rejected; if stundenplan24 was just down (5xx), keep
+    // them and try again on the next visit.
+    if (res.status === 400 || res.status === 401) {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
     return null;
   }
 

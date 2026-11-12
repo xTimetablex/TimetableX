@@ -63,6 +63,7 @@ describe('migrateLegacyCredentials', () => {
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
+      status: 401,
       json: async () => ({ error: 'Anmeldung fehlgeschlagen.' }),
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -71,6 +72,19 @@ describe('migrateLegacyCredentials', () => {
 
     expect(result).toBeNull();
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+  });
+
+  it('keeps the entry when stundenplan24 was unreachable during the check', async () => {
+    const credentials = { school: '12345678', user: 'alice', pass: 'secret' };
+    localStorage.setItem(LEGACY_KEY, JSON.stringify(credentials));
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 502, json: async () => ({}) })
+    );
+
+    expect(await migrateLegacyCredentials()).toBeNull();
+    expect(localStorage.getItem(LEGACY_KEY)).toBe(JSON.stringify(credentials));
   });
 
   it('keeps the entry and returns null on a network error', async () => {

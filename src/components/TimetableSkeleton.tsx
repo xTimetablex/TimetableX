@@ -1,115 +1,87 @@
-'use client';
+import { ViewMode } from '@/lib/types';
 
-interface TimetableSkeletonProps {
-  showClassColumn: boolean;
-  rows?: number;
-  compact?: boolean;
-}
+const WIDTHS = [78, 60, 92, 50, 84, 68, 96, 55];
 
-const ROW_WIDTHS = [78, 60, 92, 50, 84, 68, 96, 55];
-
-function SkeletonRow({
-  showClassColumn,
-  compact,
-  isLast,
-  index,
-}: {
-  showClassColumn: boolean;
-  compact?: boolean;
-  isLast: boolean;
-  index: number;
-}) {
-  const subjectWidth = ROW_WIDTHS[index % ROW_WIDTHS.length];
-  const infoWidth = ROW_WIDTHS[(index + 3) % ROW_WIDTHS.length];
-  const delay = `${(index % ROW_WIDTHS.length) * 0.07}s`;
-
+export function LessonListSkeleton({ rows = 7 }: { rows?: number }) {
   return (
-    <tr
-      className="table-row"
-      style={{
-        borderBottom: isLast ? 'none' : '1px solid var(--color-border-subtle)',
-      }}
-    >
-      <td
-        style={{
-          padding: compact ? '0.75rem 0.5rem 0.75rem 0.75rem' : '1rem 0.75rem 1rem 1.25rem',
-          width: compact ? 38 : 52,
-        }}
-      >
-        <div className="skeleton" style={{ width: compact ? 18 : 26, height: compact ? 16 : 20, margin: '0 auto', animationDelay: delay }} />
-      </td>
-
-      <td style={{ padding: compact ? '0.75rem 0.6rem' : '1rem 1rem' }}>
-        <div className="skeleton" style={{ width: `${subjectWidth}%`, maxWidth: compact ? 100 : 160, height: compact ? 14 : 18, animationDelay: delay }} />
-      </td>
-
-      {showClassColumn && (
-        <td style={{ padding: compact ? '0.75rem 0.6rem' : '1rem 1rem' }}>
-          <div className="skeleton" style={{ width: compact ? 32 : 46, height: compact ? 12 : 14, animationDelay: delay }} />
-        </td>
-      )}
-
-      <td style={{ padding: compact ? '0.75rem 0.6rem' : '1rem 1rem' }}>
-        <div className="skeleton" style={{ width: compact ? '70%' : '80%', maxWidth: compact ? 90 : 130, height: compact ? 12 : 14, animationDelay: delay }} />
-      </td>
-
-      <td style={{ padding: compact ? '0.75rem 0.6rem' : '1rem 1rem' }}>
-        <div className="skeleton skeleton-pill" style={{ width: compact ? 36 : 46, height: compact ? 20 : 24, animationDelay: delay }} />
-      </td>
-
-      <td style={{ padding: compact ? '0.75rem 0.6rem 0.75rem 0.4rem' : '1rem 1.25rem 1rem 0.75rem' }}>
-        <div className="skeleton" style={{ width: `${infoWidth}%`, maxWidth: compact ? 110 : 200, height: compact ? 12 : 14, animationDelay: delay }} />
-      </td>
-    </tr>
+    <ol className="lesson-list" aria-hidden="true">
+      {Array.from({ length: rows }, (_, i) => {
+        const delay = `${(i % WIDTHS.length) * 0.07}s`;
+        return (
+          <li key={i} className="lesson">
+            <span className="lesson-hour">
+              <span className="skeleton" style={{ width: 20, height: 18, margin: '0 auto', animationDelay: delay }} />
+            </span>
+            <div className="lesson-main gap-1.5">
+              <span className="skeleton" style={{ width: `${WIDTHS[i % WIDTHS.length] * 0.6}%`, maxWidth: 140, height: 16, animationDelay: delay }} />
+              <span className="skeleton" style={{ width: 70, height: 12, animationDelay: delay }} />
+            </div>
+            <span className="lesson-room">
+              <span className="skeleton skeleton-pill" style={{ width: 44, height: 22, animationDelay: delay }} />
+            </span>
+            <span className="lesson-info">
+              <span className="skeleton" style={{ width: `${WIDTHS[(i + 3) % WIDTHS.length]}%`, maxWidth: 220, height: 12, animationDelay: delay }} />
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
-export function TimetableSkeleton({ showClassColumn, rows = 7, compact = false }: TimetableSkeletonProps) {
+export function WeekSkeleton() {
   return (
-    <div className={compact ? 'overflow-hidden table-wrap' : 'overflow-x-auto table-wrap'} aria-hidden="true">
-      <table
-        className="w-full"
-        style={{ borderCollapse: 'collapse', tableLayout: compact ? 'fixed' : 'auto' }}
-      >
-        <tbody>
-          {Array.from({ length: rows }).map((_, i) => (
-            <SkeletonRow key={i} showClassColumn={showClassColumn} compact={compact} isLast={i === rows - 1} index={i} />
-          ))}
-        </tbody>
-      </table>
+    <div className="week-scroller" aria-hidden="true">
+      <div className="week-grid">
+        {Array.from({ length: 5 }, (_, i) => (
+          <section key={i} className="week-day panel-muted">
+            <div className="week-day-header">
+              <span className="skeleton" style={{ width: 90, height: 14, animationDelay: `${i * 0.07}s` }} />
+              <span className="skeleton" style={{ width: 60, height: 12, marginTop: 8, animationDelay: `${i * 0.07}s` }} />
+            </div>
+            <LessonListSkeleton rows={4} />
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
 
-export function WeekTimetableSkeleton({ showClassColumn }: { showClassColumn: boolean }) {
+export function TimetableBodySkeleton({ viewMode }: { viewMode: ViewMode }) {
   return (
-    <div className="overflow-x-auto overflow-y-visible p-4 sm:p-5" aria-hidden="true">
-      <div className="flex flex-nowrap gap-4 min-w-max pb-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <section
-            key={i}
-            className="week-day-card panel-muted overflow-hidden shrink-0"
-            style={{ width: 'min(82vw, 24rem)', minWidth: '18rem' }}
-          >
-            <div
-              className="flex items-start justify-between gap-4 px-4 py-4 sm:px-5 border-b"
-              style={{ borderColor: 'var(--color-border-subtle)' }}
-            >
-              <div className="min-w-0 w-full">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 4, animationDelay: `${i * 0.07}s` }} />
-                  <div className="skeleton" style={{ width: 110, height: 11, animationDelay: `${i * 0.07}s` }} />
-                </div>
-                <div className="skeleton" style={{ width: 90, height: 16, animationDelay: `${i * 0.07}s` }} />
-              </div>
-            </div>
+    <>
+      <output className="sr-only">Daten werden geladen…</output>
+      {viewMode === 'week' ? (
+        <WeekSkeleton />
+      ) : (
+        <div className="day-container">
+          <div className="day-surface">
+            <LessonListSkeleton rows={7} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
-            <div className="overflow-hidden">
-              <TimetableSkeleton showClassColumn={showClassColumn} rows={4} compact />
-            </div>
-          </section>
-        ))}
+/** Header and plan placeholders, shown while the server is still loading the plan. */
+export function AppSkeleton({ viewMode }: { viewMode: ViewMode }) {
+  return (
+    <div className="flex min-h-[100dvh] w-full flex-col">
+      <div className="app-header" aria-hidden="true">
+        <div className="app-header-inner">
+          <div className="flex items-center gap-2">
+            <span className="skeleton" style={{ flex: 1, maxWidth: 280, height: 48, borderRadius: 'var(--radius-lg)' }} />
+            <span className="skeleton" style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', marginLeft: 'auto' }} />
+            <span className="skeleton" style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)' }} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="skeleton" style={{ width: 230, height: 22 }} />
+            <span className="skeleton" style={{ width: 300, maxWidth: '100%', height: 48, borderRadius: 'var(--radius-md)' }} />
+          </div>
+        </div>
       </div>
+      <TimetableBodySkeleton viewMode={viewMode} />
     </div>
   );
 }
