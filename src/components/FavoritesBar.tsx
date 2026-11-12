@@ -3,7 +3,8 @@
 import { isSameEntity } from '@/lib/preferences';
 import { Favorite, Selection } from '@/lib/types';
 import { Button } from './button';
-import { MODE_LABEL, ModeIcon } from './ModeIcon';
+import { MODE_LABEL } from '@/lib/modeLabels';
+import { ModeIcon } from './ModeIcon';
 
 /** One-tap switching between favorites, right under the header. */
 export default function FavoritesBar({

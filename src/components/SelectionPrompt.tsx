@@ -28,18 +28,15 @@ export default function SelectionPrompt({
         </p>
 
         {classes.length > 0 ? (
-          <div className="mt-5 flex flex-wrap gap-2" role="list" aria-label="Klassen">
+          <ul className="mt-5 flex flex-wrap gap-2" aria-label="Klassen">
             {classes.map(value => (
-              <Button
-                key={value}
-                role="listitem"
-                variant="chip"
-                onClick={() => onSelect({ mode: 'class', value })}
-              >
-                {value}
-              </Button>
+              <li key={value}>
+                <Button variant="chip" onClick={() => onSelect({ mode: 'class', value })}>
+                  {value}
+                </Button>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : isLoading ? (
           <div className="mt-5 flex flex-wrap gap-2" aria-hidden="true">
             {Array.from({ length: 10 }, (_, i) => (

@@ -34,3 +34,14 @@ if (typeof globalThis.window !== 'undefined') {
     });
   }
 }
+
+// jsdom has <dialog> but doesn't implement showModal()/close() (ModalDialog
+// uses them). Opening it is enough for tests; there is no top layer to emulate.
+if (typeof globalThis.HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.removeAttribute('open');
+  };
+}

@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useEffectEvent } from 'react';
+import { useMemo } from 'react';
 import { Check, EyeOff, X } from 'lucide-react';
 import { useCloseOnBack } from '@/lib/hooks/useCloseOnBack';
 import { Button } from './button';
+import { ModalDialog } from './ModalDialog';
 
 interface BlacklistModalProps {
   isOpen: boolean;
@@ -23,25 +24,10 @@ export default function BlacklistModal(props: BlacklistModalProps) {
 }
 
 function BlacklistDialog({ onClose, entityLabel, subjects, hidden, isLoading, onToggle }: BlacklistModalProps) {
-  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key === 'Escape') onClose();
-  });
-
-  useEffect(() => {
-    const listener = (event: KeyboardEvent) => handleKeyDown(event);
-    window.addEventListener('keydown', listener);
-    return () => window.removeEventListener('keydown', listener);
-  }, []);
+  const hiddenSet = useMemo(() => new Set(hidden), [hidden]);
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[6vh] sm:pt-[10vh]"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="blacklist-title"
-    >
-      <div className="fixed inset-0 palette-backdrop" onClick={onClose} aria-hidden="true" />
-
+    <ModalDialog onClose={onClose} aria-labelledby="blacklist-title">
       <div className="relative w-full max-w-md overflow-hidden palette-panel flex flex-col">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <div className="flex items-center gap-2 min-w-0" style={{ color: 'var(--color-text)' }}>
@@ -85,13 +71,13 @@ function BlacklistDialog({ onClose, entityLabel, subjects, hidden, isLoading, on
             </div>
           ) : (
             subjects.map(subject => {
-              const isHidden = hidden.includes(subject);
+              const isHidden = hiddenSet.has(subject);
               return (
                 <Button
                   key={subject}
                   onClick={() => onToggle(subject)}
                   aria-pressed={isHidden}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all active:scale-[0.98]"
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition active:scale-[0.98]"
                   style={{
                     background: isHidden ? 'var(--color-danger-bg)' : 'var(--color-surface)',
                     border: isHidden ? '1px solid var(--color-danger-border)' : '1px solid var(--color-border-subtle)',
@@ -128,6 +114,6 @@ function BlacklistDialog({ onClose, entityLabel, subjects, hidden, isLoading, on
           </Button>
         </div>
       </div>
-    </div>
+    </ModalDialog>
   );
 }

@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { AuthIdentity } from '@/lib/types';
 import { TimetableHistory } from '@/lib/history';
-import { historyQueryKey, TimetableRequestError } from '@/lib/timetableQuery';
+import { assertOk, historyQueryKey } from '@/lib/timetableQuery';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const STALE_TIME_MS = 6 * 60 * 60 * 1000;
@@ -76,10 +76,8 @@ export function useHistory(identity: AuthIdentity, enabled: boolean) {
     queryKey: historyQueryKey(identity),
     queryFn: async () => {
       const res = await fetch('/api/history', { cache: 'no-store' });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new TimetableRequestError(json.error || 'Fehler beim Laden der letzten Pläne.', res.status);
-      }
+      await assertOk(res, 'Fehler beim Laden der letzten Pläne.');
+      const json: TimetableHistory = await res.json();
       storeHistory(identity, json);
       return json;
     },

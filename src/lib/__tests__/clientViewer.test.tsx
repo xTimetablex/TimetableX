@@ -167,13 +167,13 @@ describe('ClientViewer', () => {
     await render();
 
     await click(button(/Klasse 5\/1, Auswahl ändern/));
-    const dialog = document.querySelector('[role="dialog"]');
+    const dialog = document.querySelector('dialog');
     expect(dialog?.textContent).toContain('10/1');
 
     const option = Array.from(dialog!.querySelectorAll('[role="option"]')).find(el => el.textContent?.includes('ZZZ'));
     await click(option as HTMLElement);
 
-    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('dialog')).toBeNull();
     expect(localStorage.getItem('filterMode')).toBe('teacher');
     expect(localStorage.getItem('filterValue')).toBe('ZZZ');
   });

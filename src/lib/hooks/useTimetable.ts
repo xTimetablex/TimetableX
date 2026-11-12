@@ -6,11 +6,11 @@ import { AuthIdentity, TimetableData } from '@/lib/types';
 import { track } from '@/lib/analytics';
 import { shiftSchoolDay } from '@/lib/date';
 import {
+  assertOk,
   dayQueryKey,
   dayStaleTime,
   isAuthError,
   isPastDateStr,
-  TimetableRequestError,
 } from '@/lib/timetableQuery';
 
 async function fetchDay(dateStr: string): Promise<TimetableData> {
@@ -19,11 +19,8 @@ async function fetchDay(dateStr: string): Promise<TimetableData> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ date: dateStr }),
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new TimetableRequestError(json.error || 'Fehler beim Laden der Daten.', res.status);
-  }
-  return json as TimetableData;
+  await assertOk(res, 'Fehler beim Laden der Daten.');
+  return (await res.json()) as TimetableData;
 }
 
 export function dayQueryOptions(identity: AuthIdentity, dateStr: string) {

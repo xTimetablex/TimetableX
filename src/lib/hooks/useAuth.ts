@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AuthIdentity, Credentials } from '@/lib/types';
 import { track } from '@/lib/analytics';
 import { hasLegacyCredentials, migrateLegacyCredentials } from '@/lib/authMigration';
+import { assertOk } from '@/lib/timetableQuery';
 
 /**
  * Session identity. The server reads the session cookie while rendering
@@ -39,11 +40,8 @@ export function useAuth(initialIdentity: AuthIdentity | null) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
     });
-    const json = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(json.error || 'Anmeldung fehlgeschlagen.');
-    }
+    await assertOk(res, 'Anmeldung fehlgeschlagen.');
+    const json: { identity: AuthIdentity } = await res.json();
 
     setIdentity(json.identity);
     track('user_logged_in', { school: credentials.school });

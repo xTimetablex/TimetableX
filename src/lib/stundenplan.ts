@@ -184,18 +184,12 @@ async function fetchDayFromUpstream(
   const datum = cleanValue(kopf.DatumPlan?.[0]);
   const zeitstempel = cleanValue(kopf.zeitstempel?.[0]);
 
-  const dayNotes: string[] = [];
-
-  // Extract notes from ZusatzInfo and FreieTexte
+  // Notes from ZusatzInfo and FreieTexte, without blanks and duplicates.
   const zusatzInfoLines = result.WplanVp?.ZusatzInfo?.[0]?.ZiZeile || [];
   const freieTexte = result.WplanVp?.FreieTexte?.[0]?.Ft || [];
-
-  [...zusatzInfoLines, ...freieTexte].forEach(line => {
-    const text = cleanValue(line);
-    if (text !== FALLBACK_VALUE && !dayNotes.includes(text)) {
-      dayNotes.push(text);
-    }
-  });
+  const noteSet = new Set<string>([...zusatzInfoLines, ...freieTexte].map(line => cleanValue(line)));
+  noteSet.delete(FALLBACK_VALUE);
+  const dayNotes = [...noteSet];
 
   const entries: TimetableEntry[] = [];
   const classSet = new Set<string>();

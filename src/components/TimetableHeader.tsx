@@ -3,7 +3,8 @@
 import { ChevronDown, ChevronLeft, ChevronRight, EyeOff, RefreshCw, Star } from 'lucide-react';
 import { Selection, ViewMode } from '@/lib/types';
 import { Button } from './button';
-import { MODE_LABEL, ModeIcon } from './ModeIcon';
+import { MODE_LABEL } from '@/lib/modeLabels';
+import { ModeIcon } from './ModeIcon';
 
 interface TimetableHeaderProps {
   /** `undefined` while the stored selection is still being read. */
@@ -39,41 +40,11 @@ export default function TimetableHeader({
   isRefreshing,
   onOpenBlacklist,
 }: TimetableHeaderProps) {
-  const previousLabel = viewMode === 'week' ? 'Vorherige Woche' : 'Vorheriger Tag';
-  const nextLabel = viewMode === 'week' ? 'Nächste Woche' : 'Nächster Tag';
-
   return (
     <header className="app-header">
       <div className="app-header-inner">
         <div className="flex items-center gap-2">
-          <Button
-            onClick={onOpenPicker}
-            aria-haspopup="dialog"
-            aria-label={
-              selection
-                ? `${MODE_LABEL[selection.mode]} ${selection.value}, Auswahl ändern`
-                : 'Klasse, Raum oder Lehrer auswählen'
-            }
-            className="search-trigger search-trigger-compact flex-1 min-w-0 sm:flex-none sm:w-72"
-          >
-            <span className="mode-icon-box" aria-hidden>
-              <ModeIcon mode={selection?.mode ?? 'class'} size={18} />
-            </span>
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block text-xs font-medium leading-tight" style={{ color: 'var(--color-text-secondary)' }}>
-                {selection ? MODE_LABEL[selection.mode] : 'Auswahl'}
-              </span>
-              {selection === undefined ? (
-                <span className="skeleton mt-1" style={{ width: 60, height: 16 }} />
-              ) : (
-                <span className="block truncate text-base font-semibold leading-tight" style={{ color: 'var(--color-text)' }}>
-                  {selection?.value ?? 'Wählen…'}
-                </span>
-              )}
-            </span>
-            <kbd className="kbd hidden sm:flex">⌘K</kbd>
-            <ChevronDown className="size-4 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} aria-hidden />
-          </Button>
+          <SelectionButton selection={selection} onOpenPicker={onOpenPicker} />
 
           {selection && (
             <Button
@@ -115,50 +86,109 @@ export default function TimetableHeader({
           </div>
 
           <div className="flex items-center gap-2">
-            <div
-              className="flex items-center gap-1 p-1 rounded-[var(--radius-md)] border"
-              style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-raised)' }}
-              role="group"
-              aria-label="Ansicht"
-            >
-              <Button
-                onClick={() => onChangeViewMode('day')}
-                aria-pressed={viewMode === 'day'}
-                variant={viewMode === 'day' ? 'primary' : 'ghost'}
-                className="text-sm"
-                style={{ height: 44, padding: '0 0.85rem' }}
-              >
-                Tag
-              </Button>
-              <Button
-                onClick={() => onChangeViewMode('week')}
-                aria-pressed={viewMode === 'week'}
-                variant={viewMode === 'week' ? 'primary' : 'ghost'}
-                className="text-sm"
-                style={{ height: 44, padding: '0 0.85rem' }}
-              >
-                Woche
-              </Button>
-            </div>
-
-            <Button onClick={() => onNavigate(-1)} aria-label={previousLabel} variant="icon">
-              <ChevronLeft className="size-5" strokeWidth={2} />
-            </Button>
-            <Button
-              onClick={onToday}
-              aria-pressed={isToday}
-              variant={isToday ? 'primary' : 'ghost'}
-              className="text-sm"
-              style={{ height: 48, padding: '0 0.85rem' }}
-            >
-              Heute
-            </Button>
-            <Button onClick={() => onNavigate(1)} aria-label={nextLabel} variant="icon">
-              <ChevronRight className="size-5" strokeWidth={2} />
-            </Button>
+            <ViewModeToggle viewMode={viewMode} onChange={onChangeViewMode} />
+            <DateStepper viewMode={viewMode} onNavigate={onNavigate} onToday={onToday} isToday={isToday} />
           </div>
         </div>
       </div>
     </header>
+  );
+}
+
+/** Shows the current class/room/teacher and opens the picker. */
+function SelectionButton({
+  selection,
+  onOpenPicker,
+}: Pick<TimetableHeaderProps, 'selection' | 'onOpenPicker'>) {
+  const modeLabel = selection ? MODE_LABEL[selection.mode] : null;
+
+  let value;
+  if (selection === undefined) {
+    value = <span className="skeleton mt-1" style={{ width: 60, height: 16 }} />;
+  } else {
+    value = (
+      <span className="block truncate text-base font-semibold leading-tight" style={{ color: 'var(--color-text)' }}>
+        {selection?.value ?? 'Wählen…'}
+      </span>
+    );
+  }
+
+  return (
+    <Button
+      onClick={onOpenPicker}
+      aria-haspopup="dialog"
+      aria-label={selection ? `${modeLabel} ${selection.value}, Auswahl ändern` : 'Klasse, Raum oder Lehrer auswählen'}
+      className="search-trigger search-trigger-compact flex-1 min-w-0 sm:flex-none sm:w-72"
+    >
+      <span className="mode-icon-box" aria-hidden>
+        <ModeIcon mode={selection?.mode ?? 'class'} size={18} />
+      </span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block text-xs font-medium leading-tight" style={{ color: 'var(--color-text-secondary)' }}>
+          {modeLabel ?? 'Auswahl'}
+        </span>
+        {value}
+      </span>
+      <kbd className="kbd hidden sm:flex">⌘K</kbd>
+      <ChevronDown className="size-4 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} aria-hidden />
+    </Button>
+  );
+}
+
+const VIEW_MODES: { mode: ViewMode; label: string }[] = [
+  { mode: 'day', label: 'Tag' },
+  { mode: 'week', label: 'Woche' },
+];
+
+function ViewModeToggle({ viewMode, onChange }: { viewMode: ViewMode; onChange: (mode: ViewMode) => void }) {
+  return (
+    <div
+      className="flex items-center gap-1 p-1 rounded-[var(--radius-md)] border"
+      style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface-raised)' }}
+      role="group"
+      aria-label="Ansicht"
+    >
+      {VIEW_MODES.map(({ mode, label }) => (
+        <Button
+          key={mode}
+          onClick={() => onChange(mode)}
+          aria-pressed={viewMode === mode}
+          variant={viewMode === mode ? 'primary' : 'ghost'}
+          className="text-sm"
+          style={{ height: 44, padding: '0 0.85rem' }}
+        >
+          {label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** ‹ Heute › */
+function DateStepper({
+  viewMode,
+  onNavigate,
+  onToday,
+  isToday,
+}: Pick<TimetableHeaderProps, 'viewMode' | 'onNavigate' | 'onToday' | 'isToday'>) {
+  const isWeek = viewMode === 'week';
+  return (
+    <>
+      <Button onClick={() => onNavigate(-1)} aria-label={isWeek ? 'Vorherige Woche' : 'Vorheriger Tag'} variant="icon">
+        <ChevronLeft className="size-5" strokeWidth={2} />
+      </Button>
+      <Button
+        onClick={onToday}
+        aria-pressed={isToday}
+        variant={isToday ? 'primary' : 'ghost'}
+        className="text-sm"
+        style={{ height: 48, padding: '0 0.85rem' }}
+      >
+        Heute
+      </Button>
+      <Button onClick={() => onNavigate(1)} aria-label={isWeek ? 'Nächste Woche' : 'Nächster Tag'} variant="icon">
+        <ChevronRight className="size-5" strokeWidth={2} />
+      </Button>
+    </>
   );
 }

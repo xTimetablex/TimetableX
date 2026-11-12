@@ -9,6 +9,20 @@ function cx(...classes: Array<string | false | null | undefined>) {
 const isBlank = (value: string) => !value || value === '---';
 
 /**
+ * Stable React keys built from the lesson itself. A plan can list the very
+ * same lesson twice (e.g. split groups), so repeats get a running number.
+ */
+function withKeys(entries: TimetableEntry[]): { key: string; entry: TimetableEntry }[] {
+  const seen = new Map<string, number>();
+  return entries.map(entry => {
+    const base = [entry.hour, entry.class, entry.subject, entry.teacher, entry.room].join('|');
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    return { key: count === 0 ? base : `${base}#${count}`, entry };
+  });
+}
+
+/**
  * Lessons of one day. A container query (see `.lesson` in globals.css) lays
  * each lesson out on one line when there is room and on two lines otherwise,
  * so the info text (the actual substitution) is always visible without
@@ -23,14 +37,14 @@ export default function LessonList({
 }) {
   return (
     <ol className="lesson-list" aria-label="Stunden">
-      {entries.map((entry, index) => {
+      {withKeys(entries).map(({ key, entry }) => {
         const cancelled = isCancelledEntry(entry);
         const changed = getChangedFields(entry);
         const withInfo = hasInfo(entry);
 
         return (
           <li
-            key={`${index}-${entry.class}-${entry.hour}-${entry.subject}`}
+            key={key}
             className={cx('lesson', cancelled && 'is-cancelled', !withInfo && 'no-info')}
           >
             <span className={cx('lesson-hour', changed.hour && 'is-changed')}>

@@ -6,7 +6,9 @@ import { isSameEntity } from '@/lib/preferences';
 import { useCloseOnBack } from '@/lib/hooks/useCloseOnBack';
 import { Favorite, FilterMode, SearchItem, Selection } from '@/lib/types';
 import { Button } from './button';
-import { MODE_LABEL, MODE_LABEL_PLURAL, ModeIcon } from './ModeIcon';
+import { MODE_LABEL, MODE_LABEL_PLURAL } from '@/lib/modeLabels';
+import { ModalDialog } from './ModalDialog';
+import { ModeIcon } from './ModeIcon';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -89,13 +91,10 @@ export default function CommandPalette(props: CommandPaletteProps) {
 function PaletteDialog({ onClose, onSelect, items, favorites, current, isLoadingMore }: CommandPaletteProps) {
   const idPrefix = useId();
   const listboxId = `${idPrefix}-listbox`;
+  const inputId = `${idPrefix}-input`;
   const [search, setSearch] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Typing is the fast path with a keyboard. On touch screens the list is,
-  // and popping up the on-screen keyboard would cover half of it.
-  const [autoFocus] = useState(() => window.matchMedia('(pointer: fine)').matches);
 
   const query = search.trim().toLowerCase();
   const groups = useMemo(
@@ -104,15 +103,6 @@ function PaletteDialog({ onClose, onSelect, items, favorites, current, isLoading
   );
   const options = useMemo(() => groups.flatMap(group => group.options), [groups]);
   const activeOption = options[Math.min(activeIndex, options.length - 1)];
-
-  // Give focus back to whatever opened the picker. Captured during render,
-  // before autoFocus moves focus into the input.
-  const [opener] = useState(() => document.activeElement as HTMLElement | null);
-  useEffect(() => {
-    return () => {
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    };
-  }, [opener]);
 
   useEffect(() => {
     if (activeOption) document.getElementById(activeOption.id)?.scrollIntoView({ block: 'nearest' });
@@ -124,10 +114,7 @@ function PaletteDialog({ onClose, onSelect, items, favorites, current, isLoading
   };
 
   const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      onClose();
-    } else if (event.key === 'ArrowDown' && options.length > 0) {
+    if (event.key === 'ArrowDown' && options.length > 0) {
       event.preventDefault();
       setActiveIndex(index => (Math.min(index, options.length - 1) + 1) % options.length);
     } else if (event.key === 'ArrowUp' && options.length > 0) {
@@ -146,26 +133,28 @@ function PaletteDialog({ onClose, onSelect, items, favorites, current, isLoading
   }, []);
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[6vh] sm:pt-[10vh]"
-      role="dialog"
-      aria-modal="true"
+    <ModalDialog
+      onClose={onClose}
       aria-label="Klasse, Raum oder Lehrer auswählen"
+      // Typing is the fast path with a keyboard. On touch screens the list is,
+      // and popping up the on-screen keyboard would cover half of it.
+      getInitialFocus={() => (window.matchMedia('(pointer: fine)').matches ? inputRef.current : null)}
     >
-      <div className="fixed inset-0 palette-backdrop" onClick={onClose} aria-hidden="true" />
-
       <div className="relative w-full max-w-xl overflow-hidden palette-panel">
         <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
-          <Search className="size-5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} strokeWidth={2} aria-hidden />
+          <label htmlFor={inputId} className="flex flex-shrink-0 items-center">
+            <Search className="size-5" style={{ color: 'var(--color-primary)' }} strokeWidth={2} aria-hidden />
+            <span className="sr-only">Suchen</span>
+          </label>
           <input
             ref={inputRef}
+            id={inputId}
             type="search"
             enterKeyHint="go"
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}
-            autoFocus={autoFocus}
             placeholder="Klasse, Raum oder Lehrer suchen…"
             role="combobox"
             aria-expanded="true"
@@ -266,6 +255,6 @@ function PaletteDialog({ onClose, onSelect, items, favorites, current, isLoading
           ))}
         </div>
       </div>
-    </div>
+    </ModalDialog>
   );
 }

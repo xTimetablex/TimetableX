@@ -436,6 +436,11 @@ h1, h2, h3, .display {
   gap: 0.2rem;
 }
 
+/* Native <dialog>: ModalDialog draws its own backdrop. */
+.modal-dialog::backdrop {
+  background: transparent;
+}
+
 .palette-backdrop {
   background: rgba(20, 16, 12, 0.35);
   backdrop-filter: blur(10px);

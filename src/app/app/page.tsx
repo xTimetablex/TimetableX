@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import { cache, Suspense } from 'react';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { dehydrate, HydrationBoundary, QueryClient } from '@tanstack/react-query';
@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   title: 'Stundenplan – TimetableX',
   description: 'Dein Vertretungsplan auf einen Blick.',
 };
+
+/**
+ * One QueryClient per server request: `cache` scopes it to the request, so
+ * users never share prefetched data.
+ */
+const getRequestQueryClient = cache(() => new QueryClient());
 
 /** Past this, the page is sent without the plan and the browser loads it itself. */
 const PREFETCH_TIMEOUT_MS = 2500;
@@ -73,7 +79,7 @@ async function PrefetchedApp({
   todayStr: string;
 }) {
   const identity = getPublicIdentity(credentials);
-  const queryClient = new QueryClient();
+  const queryClient = getRequestQueryClient();
 
   const prefetch = Promise.all(
     getViewDates(dateStr, viewMode).map(day =>

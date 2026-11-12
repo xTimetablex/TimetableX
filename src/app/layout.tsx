@@ -41,6 +41,17 @@ export const metadata: Metadata = {
   },
 };
 
+// Installed PWAs should open the app directly, even if their cached start_url
+// still points at "/" from before the manifest changed. The display mode only
+// exists in the browser, so this can't be a server redirect. (Logged-in
+// browser visitors are redirected on the server, in src/app/page.tsx.)
+const PWA_START_REDIRECT = `
+  if (location.pathname === '/' && (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true
+  )) location.replace('/app');
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -48,6 +59,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="de" className={`${atkinson.variable} ${fraunces.variable}`}>
+      <head>
+        {/* Runs while the HTML is parsed, so the landing page never flashes. */}
+        <script dangerouslySetInnerHTML={{ __html: PWA_START_REDIRECT }} />
+      </head>
       <body className="antialiased">
         <div id="scroll-root">
           <BackgroundField />

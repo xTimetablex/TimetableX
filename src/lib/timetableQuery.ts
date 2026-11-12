@@ -15,6 +15,18 @@ export class TimetableRequestError extends Error {
   }
 }
 
+/**
+ * Throws a `TimetableRequestError` for a non-OK response, using the `error`
+ * message our API routes send (or `fallback` if the body has none). Call it
+ * before reading the body of a successful response.
+ */
+export async function assertOk(res: Response, fallback: string): Promise<void> {
+  if (res.ok) return;
+  const body: { error?: unknown } = await res.json().catch(() => ({}));
+  const message = typeof body.error === 'string' && body.error ? body.error : fallback;
+  throw new TimetableRequestError(message, res.status);
+}
+
 export function isAuthError(error: unknown): boolean {
   return error instanceof TimetableRequestError && error.status === 401;
 }
