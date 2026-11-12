@@ -1,317 +1,269 @@
 'use client';
 
-import React, { useState, useEffect, useEffectEvent, useRef, useMemo } from 'react';
-import { Search, Users, MapPin, User, X } from 'lucide-react';
-import { SearchItem } from '@/lib/types';
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react';
+import { Check, Loader2, Search, Star, X } from 'lucide-react';
+import { isSameEntity } from '@/lib/preferences';
+import { useCloseOnBack } from '@/lib/hooks/useCloseOnBack';
+import { Favorite, FilterMode, SearchItem, Selection } from '@/lib/types';
 import { Button } from './button';
+import { MODE_LABEL, MODE_LABEL_PLURAL, ModeIcon } from './ModeIcon';
 
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelect: (item: SearchItem) => void;
+  onSelect: (selection: Selection) => void;
+  /** Every known class, room and teacher, sorted. */
   items: SearchItem[];
+  favorites: Favorite[];
+  current: Selection | null;
+  /** True while older plans are still being searched for more entries. */
+  isLoadingMore: boolean;
 }
 
-const typeLabel: Record<SearchItem['type'], string> = {
-  class: 'Klasse',
-  room: 'Raum',
-  teacher: 'Lehrer',
-};
+const MODES: FilterMode[] = ['class', 'room', 'teacher'];
+const MAX_RESULTS_PER_GROUP = 30;
 
-const typeLabelPlural: Record<SearchItem['type'], string> = {
-  class: 'Klassen',
-  room: 'Räume',
-  teacher: 'Lehrer',
-};
+interface Group {
+  key: string;
+  label: string;
+  icon?: 'star';
+  options: { id: string; selection: Selection }[];
+}
 
-const TYPE_ICON_PROPS = { className: 'w-4 h-4', strokeWidth: 1.75 as number };
+function rank(name: string, query: string): number {
+  const lower = name.toLowerCase();
+  if (lower === query) return 0;
+  if (lower.startsWith(query)) return 1;
+  return 2;
+}
 
-const TypeIcon = ({ type }: { type: SearchItem['type'] }) => {
-  if (type === 'class') return <Users {...TYPE_ICON_PROPS} />;
-  if (type === 'room') return <MapPin {...TYPE_ICON_PROPS} />;
-  return <User {...TYPE_ICON_PROPS} />;
-};
+function buildGroups(items: SearchItem[], favorites: Favorite[], query: string, idPrefix: string): Group[] {
+  const groups: Group[] = [];
+  const toOption = (selection: Selection, group: string) => ({
+    id: `${idPrefix}-${group}-${selection.mode}-${selection.value}`,
+    selection,
+  });
 
-export default function CommandPalette({ isOpen, onClose, onSelect, items }: CommandPaletteProps) {
-  const [search, setSearch] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [wasOpen, setWasOpen] = useState(isOpen);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  if (!query && favorites.length > 0) {
+    groups.push({
+      key: 'favorites',
+      label: 'Favoriten',
+      icon: 'star',
+      options: favorites.map(f => toOption(f, 'fav')),
+    });
+  }
 
-  if (isOpen !== wasOpen) {
-    setWasOpen(isOpen);
-    if (isOpen) {
-      setSearch('');
-      setSelectedIndex(0);
+  for (const mode of MODES) {
+    let matches = items.filter(item => item.type === mode);
+    if (query) {
+      matches = matches
+        .filter(item => item.name.toLowerCase().includes(query))
+        .map((item, index) => ({ item, index, rank: rank(item.name, query) }))
+        .sort((a, b) => a.rank - b.rank || a.index - b.index)
+        .slice(0, MAX_RESULTS_PER_GROUP)
+        .map(({ item }) => item);
+    }
+    if (matches.length > 0) {
+      groups.push({
+        key: mode,
+        label: MODE_LABEL_PLURAL[mode],
+        options: matches.map(item => toOption({ mode, value: item.name }, mode)),
+      });
     }
   }
 
+  return groups;
+}
+
+/**
+ * Picker for the class, room or teacher. With an empty search it lists
+ * favorites and everything known, so a tap is enough; typing filters.
+ */
+export default function CommandPalette(props: CommandPaletteProps) {
+  useCloseOnBack(props.isOpen, props.onClose);
+  if (!props.isOpen) return null;
+  // Mounted fresh on every open, so the search always starts empty.
+  return <PaletteDialog {...props} />;
+}
+
+function PaletteDialog({ onClose, onSelect, items, favorites, current, isLoadingMore }: CommandPaletteProps) {
+  const idPrefix = useId();
+  const listboxId = `${idPrefix}-listbox`;
+  const [search, setSearch] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Typing is the fast path with a keyboard. On touch screens the list is,
+  // and popping up the on-screen keyboard would cover half of it.
+  const [autoFocus] = useState(() => window.matchMedia('(pointer: fine)').matches);
+
+  const query = search.trim().toLowerCase();
+  const groups = useMemo(
+    () => buildGroups(items, favorites, query, idPrefix),
+    [items, favorites, query, idPrefix]
+  );
+  const options = useMemo(() => groups.flatMap(group => group.options), [groups]);
+  const activeOption = options[Math.min(activeIndex, options.length - 1)];
+
+  // Give focus back to whatever opened the picker. Captured during render,
+  // before autoFocus moves focus into the input.
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
   useEffect(() => {
-    if (isOpen) {
-      const id = setTimeout(() => inputRef.current?.focus(), 10);
-      return () => clearTimeout(id);
-    }
-  }, [isOpen]);
+    return () => {
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, [opener]);
 
-  const filteredItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return [];
-    return items
-      .filter(item => item.name.toLowerCase().includes(q) || item.type.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const an = a.name.toLowerCase();
-        const bn = b.name.toLowerCase();
-        if (an === q) return -1;
-        if (bn === q) return 1;
-        if (an.startsWith(q) && !bn.startsWith(q)) return -1;
-        if (!an.startsWith(q) && bn.startsWith(q)) return 1;
-        return a.name.localeCompare(b.name);
-      })
-      .slice(0, 15);
-  }, [items, search]);
+  useEffect(() => {
+    if (activeOption) document.getElementById(activeOption.id)?.scrollIntoView({ block: 'nearest' });
+  }, [activeOption]);
 
-  const onSelectEvent = useEffectEvent(onSelect);
-  const onCloseEvent = useEffectEvent(onClose);
-
-  const scrollItemIntoView = (index: number) => {
-    const el = document.getElementById(`palette-item-${index}`);
-    if (el && scrollRef.current) {
-      const c = scrollRef.current;
-      const top = el.offsetTop;
-      const h = el.offsetHeight;
-      if (top < c.scrollTop) c.scrollTop = top - 8;
-      else if (top + h > c.scrollTop + c.offsetHeight) c.scrollTop = top + h - c.offsetHeight + 8;
-    }
+  const choose = (selection: Selection) => {
+    onSelect(selection);
+    onClose();
   };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-      if (e.key === 'Escape') { onCloseEvent(); }
-      else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        const next = (selectedIndex + 1) % Math.max(1, filteredItems.length);
-        setSelectedIndex(next);
-        scrollItemIntoView(next);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        const next = (selectedIndex - 1 + filteredItems.length) % Math.max(1, filteredItems.length);
-        setSelectedIndex(next);
-        scrollItemIntoView(next);
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (filteredItems[selectedIndex]) { onSelectEvent(filteredItems[selectedIndex]); onCloseEvent(); }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filteredItems, selectedIndex]);
-
-  if (!isOpen) return null;
-
-  // Group items by type
-  const groups: { type: SearchItem['type']; items: (SearchItem & { originalIndex: number })[] }[] = [];
-  filteredItems.forEach((item, idx) => {
-    const last = groups[groups.length - 1];
-    if (!last || last.type !== item.type) {
-      groups.push({ type: item.type, items: [{ ...item, originalIndex: idx }] });
-    } else {
-      last.items.push({ ...item, originalIndex: idx });
+  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+    } else if (event.key === 'ArrowDown' && options.length > 0) {
+      event.preventDefault();
+      setActiveIndex(index => (Math.min(index, options.length - 1) + 1) % options.length);
+    } else if (event.key === 'ArrowUp' && options.length > 0) {
+      event.preventDefault();
+      setActiveIndex(index => (Math.min(index, options.length - 1) - 1 + options.length) % options.length);
+    } else if (event.key === 'Enter' && activeOption && event.target === inputRef.current) {
+      event.preventDefault();
+      choose(activeOption.selection);
     }
   });
 
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => handleKeyDown(event);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
+
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] px-4"
+      className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[6vh] sm:pt-[10vh]"
       role="dialog"
       aria-modal="true"
-      aria-label="Suche"
+      aria-label="Klasse, Raum oder Lehrer auswählen"
     >
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 palette-backdrop"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="fixed inset-0 palette-backdrop" onClick={onClose} aria-hidden="true" />
 
-      {/* Panel */}
-      <div
-        className="relative w-full max-w-xl overflow-hidden palette-panel"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderBottom: '1px solid var(--color-border)' }}>
-          <Search
-            className="size-5 flex-shrink-0"
-            style={{ color: 'var(--color-primary)' }}
-            strokeWidth={2}
-          />
+      <div className="relative w-full max-w-xl overflow-hidden palette-panel">
+        <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid var(--color-border)' }}>
+          <Search className="size-5 flex-shrink-0" style={{ color: 'var(--color-primary)' }} strokeWidth={2} aria-hidden />
           <input
             ref={inputRef}
             type="search"
+            enterKeyHint="go"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            autoFocus={autoFocus}
             placeholder="Klasse, Raum oder Lehrer suchen…"
-            aria-label="Suche"
-            className="flex-1 bg-transparent border-none outline-none palette-input"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeOption?.id}
+            className="flex-1 min-w-0 bg-transparent border-none outline-none palette-input"
             value={search}
-            onChange={e => {
-              setSearch(e.target.value);
-              setSelectedIndex(0);
+            onChange={event => {
+              setSearch(event.target.value);
+              setActiveIndex(0);
             }}
           />
-          <Button
-            onClick={onClose}
-            aria-label="Schließen"
-            variant="icon"
-            style={{ width: 44, height: 44 }}
-          >
-            <X className="size-3.5" strokeWidth={2.5} />
+          <Button onClick={onClose} aria-label="Schließen" variant="icon" style={{ width: 44, height: 44 }}>
+            <X className="size-4" strokeWidth={2.5} />
           </Button>
         </div>
 
-        {/* Results */}
-        <div
-          ref={scrollRef}
-          className="overflow-y-auto"
-          style={{ maxHeight: '52vh' }}
-        >
-          {filteredItems.length > 0 ? (
-            <div className="p-2">
-              {groups.map((group, groupIndex) => (
-                <div key={`${group.type}-${groupIndex}`}>
-                  {/* Group header */}
+        <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: '62vh' }}>
+          {options.length > 0 ? (
+            <div id={listboxId} role="listbox" aria-label="Ergebnisse" className="p-2">
+              {groups.map(group => (
+                <div key={group.key} role="group" aria-labelledby={`${idPrefix}-${group.key}-label`}>
                   <div
-                    className="flex items-center gap-2 px-3 pt-3 pb-1.5"
+                    id={`${idPrefix}-${group.key}-label`}
+                    className="flex items-center gap-1.5 px-3 pt-3 pb-1.5 text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: 'var(--color-text-muted)' }}
                   >
-                    <span
-                      className="text-xs font-semibold uppercase tracking-wider"
-                      style={{ color: 'var(--color-text-muted)' }}
-                    >
-                      {typeLabelPlural[group.type]}
-                    </span>
+                    {group.icon === 'star' && <Star className="size-3" strokeWidth={2.5} aria-hidden />}
+                    {group.label}
                   </div>
 
-                  {/* Group items */}
-                  {group.items.map(item => {
-                    const isSelected = item.originalIndex === selectedIndex;
+                  {group.options.map(option => {
+                    const isActive = option.id === activeOption?.id;
+                    const isCurrent = isSameEntity(option.selection, current);
                     return (
-                      <Button
-                        key={`${item.type}-${item.id}`}
-                        id={`palette-item-${item.originalIndex}`}
+                      <button
+                        key={option.id}
+                        id={option.id}
+                        type="button"
                         role="option"
-                        aria-selected={isSelected}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 cursor-pointer text-left palette-item"
-                        style={{ border: 'none', fontFamily: 'inherit' }}
-                        onClick={() => { onSelect(item); onClose(); }}
-                        onMouseEnter={() => setSelectedIndex(item.originalIndex)}
+                        tabIndex={-1}
+                        aria-selected={isActive}
+                        className="palette-item w-full flex items-center gap-3 px-3 py-2.5 text-left"
+                        onClick={() => choose(option.selection)}
+                        onMouseMove={() => {
+                          if (!isActive) setActiveIndex(options.indexOf(option));
+                        }}
                       >
-                        <div
-                          className="flex items-center justify-center flex-shrink-0"
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 'var(--radius-sm)',
-                            background: isSelected ? 'rgba(255,255,255,0.2)' : 'var(--color-primary-light)',
-                            color: isSelected ? '#ffffff' : 'var(--color-primary)',
-                          }}
-                        >
-                          <TypeIcon type={item.type} />
-                        </div>
-                        <span
-                          className="text-base font-medium"
-                          style={{ color: isSelected ? '#ffffff' : 'var(--color-text)' }}
-                        >
-                          {item.name}
+                        <span className="palette-item-icon" aria-hidden>
+                          <ModeIcon mode={option.selection.mode} />
                         </span>
-                        {isSelected && (
-                          <span
-                            className="ml-auto text-xs font-medium px-2 py-0.5"
-                            style={{
-                              borderRadius: 'var(--radius-sm)',
-                              background: 'rgba(255,255,255,0.2)',
-                              color: 'rgba(255,255,255,0.9)',
-                            }}
-                          >
-                            ↵ Auswählen
-                          </span>
+                        <span className="text-base font-medium min-w-0 truncate">{option.selection.value}</span>
+                        {group.key === 'favorites' && (
+                          <span className="text-xs palette-item-hint">{MODE_LABEL[option.selection.mode]}</span>
                         )}
-                      </Button>
+                        {isCurrent && (
+                          <Check className="ml-auto size-4 flex-shrink-0" strokeWidth={2.5} aria-label="Aktuelle Auswahl" />
+                        )}
+                      </button>
                     );
                   })}
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '50%',
-                  background: 'var(--color-border-subtle)',
-                  color: 'var(--color-text-muted)',
-                }}
-              >
-                <Search className="size-5" strokeWidth={1.75} />
-              </div>
-              <div className="text-center">
-                {search.trim().length === 0 ? (
-                  <>
-                    <p className="text-base font-medium" style={{ color: 'var(--color-text)' }}>
-                      Suche starten
-                    </p>
-                    <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-                      Tippe, um Klasse, Raum oder Lehrer zu finden.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-base font-medium" style={{ color: 'var(--color-text)' }}>
-                      Keine Ergebnisse
-                    </p>
-                    <p className="text-sm mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-                      Versuche einen anderen Suchbegriff.
-                    </p>
-                  </>
-                )}
-              </div>
+            <div className="flex flex-col items-center justify-center py-14 gap-2 text-center px-6">
+              <p className="text-base font-medium" style={{ color: 'var(--color-text)' }}>
+                {query ? 'Keine Ergebnisse' : 'Noch nichts gefunden'}
+              </p>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                {isLoadingMore
+                  ? 'Ältere Pläne werden durchsucht…'
+                  : query
+                    ? 'Versuche einen anderen Suchbegriff.'
+                    : 'Im aktuellen Plan stehen keine Klassen, Räume oder Lehrer.'}
+              </p>
             </div>
+          )}
+          {isLoadingMore && options.length > 0 && (
+            <p className="flex items-center justify-center gap-2 pb-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              Ältere Pläne werden durchsucht…
+            </p>
           )}
         </div>
 
-        {/* Footer hints */}
-        <div
-          className="flex items-center justify-between px-4 py-3"
-          style={{
-            borderTop: '1px solid var(--color-border)',
-            background: 'var(--color-bg)',
-          }}
-        >
-          <div className="flex items-center gap-4">
-            {[
-              { key: '↑↓', label: 'Navigieren' },
-              { key: '↵', label: 'Auswählen' },
-              { key: 'ESC', label: 'Schließen' },
-            ].map(hint => (
-              <div key={hint.key} className="flex items-center gap-1.5">
-                <kbd
-                  className="kbd"
-                >
-                  {hint.key}
-                </kbd>
-                <span className="text-xs hidden sm:inline" style={{ color: 'var(--color-text-muted)' }}>
-                  {hint.label}
-                </span>
-              </div>
-            ))}
-          </div>
-          <span
-            className="text-xs font-semibold"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            TimetableX
-          </span>
+        <div className="palette-footer">
+          {[
+            { key: '↑↓', label: 'Navigieren' },
+            { key: '↵', label: 'Auswählen' },
+            { key: 'ESC', label: 'Schließen' },
+          ].map(hint => (
+            <span key={hint.key} className="flex items-center gap-1.5">
+              <kbd className="kbd">{hint.key}</kbd>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{hint.label}</span>
+            </span>
+          ))}
         </div>
       </div>
     </div>

@@ -1,8 +1,25 @@
 import type { Metadata, Viewport } from "next";
+import { Atkinson_Hyperlegible, Fraunces } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { Providers } from "./providers";
 import BackgroundField from "@/components/BackgroundField";
+
+// Self-hosted by next/font at build time: no request to Google from the
+// visitor's browser (which would send their IP address to Google without
+// consent) and no render-blocking CSS @import chain.
+const atkinson = Atkinson_Hyperlegible({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
+  variable: "--font-atkinson",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-fraunces",
+});
 
 export const viewport: Viewport = {
   themeColor: [
@@ -30,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="de">
+    <html lang="de" className={`${atkinson.variable} ${fraunces.variable}`}>
       <body className="antialiased">
         <div id="scroll-root">
           <BackgroundField />

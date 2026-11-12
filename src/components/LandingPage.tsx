@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LazyMotion, domAnimation, MotionConfig } from 'framer-motion';
 
-import { useAuth } from '@/lib/hooks/useAuth';
 import LandingHero from './LandingHero';
 import LandingFeatures from './LandingFeatures';
 import LandingShowcase from './LandingShowcase';
@@ -19,21 +18,15 @@ function isStandaloneDisplayMode(): boolean {
 
 export default function LandingPage() {
   const router = useRouter();
-  const { isLogged, isInitialized } = useAuth();
 
   // Installed PWAs should land on the app directly, even if their cached
-  // start_url still points at "/" from before this routing change.
+  // start_url still points at "/" from before this routing change. (Logged-in
+  // browser visitors are already redirected on the server, in src/app/page.tsx.)
   useEffect(() => {
     if (isStandaloneDisplayMode()) {
       router.replace('/app');
     }
   }, [router]);
-
-  useEffect(() => {
-    if (isInitialized && isLogged) {
-      router.replace('/app');
-    }
-  }, [isInitialized, isLogged, router]);
 
   return (
     <LazyMotion features={domAnimation}>

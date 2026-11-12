@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;500;600;700&family=Fraunces:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -56,9 +55,7 @@
   --btn-3d-border: var(--color-primary-border);
   --btn-3d-shadow: color-mix(in srgb, var(--color-primary) 65%, var(--color-primary-border) 35%);
 
-  /* Pointer-driven background */
-  --pointer-x: 0;
-  --pointer-y: 0;
+  /* Background orbs */
   --bg-orb-1: #D9E7F5;
   --bg-orb-2: #EDE2FF;
   --bg-orb-3: #E2F2E5;
@@ -110,9 +107,10 @@
 @theme inline {
   --color-background: var(--color-bg);
   --color-foreground: var(--color-text);
-  --font-sans: 'Atkinson Hyperlegible', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* --font-atkinson / --font-fraunces come from next/font (src/app/layout.tsx). */
+  --font-sans: var(--font-atkinson), 'Atkinson Hyperlegible', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-display: 'Fraunces', ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --font-display: var(--font-fraunces), 'Fraunces', ui-serif, Georgia, Cambria, "Times New Roman", serif;
 }
 
 *, *::before, *::after {
@@ -147,11 +145,17 @@ body {
   overflow-y: auto;
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
 }
 
-#scroll-root::-webkit-scrollbar {
-  display: none;
+/* Hide the page scrollbar on touch screens only; mouse users need it. */
+@media (pointer: coarse) {
+  #scroll-root {
+    scrollbar-width: none;
+  }
+
+  #scroll-root::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 h1, h2, h3, .display {
@@ -474,14 +478,14 @@ h1, h2, h3, .display {
   background: var(--color-primary);
 }
 
-.table-wrap {
-  background: var(--color-surface-raised);
+.day-notes {
+  border-bottom: 1px solid var(--color-warning-border);
+  background: var(--color-warning-bg);
+  padding: 1rem 1.25rem;
 }
 
-.day-notes {
-  border-top: 1px solid var(--color-warning-border);
-  background: var(--color-warning-bg);
-  padding: 1.25rem 1.5rem;
+.day-notes.is-compact {
+  padding: 0.85rem 1rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -490,10 +494,6 @@ h1, h2, h3, .display {
   }
 
   .panel-muted {
-    background: var(--color-surface);
-  }
-
-  .table-wrap {
     background: var(--color-surface);
   }
 }
@@ -508,22 +508,6 @@ h1, h2, h3, .display {
   font-weight: 600;
   background: var(--color-primary-light);
   color: var(--color-primary);
-}
-
-.table-row {
-  transition: background var(--transition-fast);
-}
-
-.table-row:hover {
-  background: inherit;
-}
-
-.table-row.cancelled {
-  background: var(--color-danger-bg);
-}
-
-.table-row.cancelled:hover {
-  background: var(--color-danger-bg);
 }
 
 /* Skeleton loaders */
@@ -590,8 +574,6 @@ h1, h2, h3, .display {
   border-radius: 999px;
   filter: blur(24px);
   opacity: 0.7;
-  transform: translate3d(calc(var(--pointer-x) * 1px), calc(var(--pointer-y) * 1px), 0);
-  transition: transform 250ms ease;
   mix-blend-mode: multiply;
 }
 
@@ -601,7 +583,6 @@ h1, h2, h3, .display {
   top: -80px;
   left: -60px;
   background: var(--bg-orb-1);
-  animation: drift 22s ease-in-out infinite;
 }
 
 .orb-2 {
@@ -610,7 +591,6 @@ h1, h2, h3, .display {
   bottom: -140px;
   right: -120px;
   background: var(--bg-orb-2);
-  animation: drift 26s ease-in-out infinite reverse;
 }
 
 .orb-3 {
@@ -619,7 +599,6 @@ h1, h2, h3, .display {
   top: 35%;
   right: 12%;
   background: var(--bg-orb-3);
-  animation: drift 20s ease-in-out infinite;
 }
 
 .bg-grid {
@@ -638,12 +617,6 @@ h1, h2, h3, .display {
   background-image: url("data:image/svg+xml,%3Csvg width='120' height='120' viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
   opacity: 0.6;
   mix-blend-mode: soft-light;
-}
-
-@keyframes drift {
-  0% { transform: translate3d(calc(var(--pointer-x) * 0.5px), calc(var(--pointer-y) * 0.5px), 0) scale(1); }
-  50% { transform: translate3d(calc(var(--pointer-x) * -0.4px), calc(var(--pointer-y) * 0.6px), 0) scale(1.05); }
-  100% { transform: translate3d(calc(var(--pointer-x) * 0.5px), calc(var(--pointer-y) * 0.5px), 0) scale(1); }
 }
 
 /* Focus styles for accessibility */
@@ -683,4 +656,478 @@ h1, h2, h3, .display {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
+}
+
+/* Disabled controls */
+.btn:disabled,
+.icon-btn:disabled,
+.chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+
+/* ---------------------------------------------------------------------------
+ * App header
+ * ------------------------------------------------------------------------- */
+
+.app-header {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.app-header-inner {
+  margin: 0 auto;
+  max-width: 72rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .app-header-inner {
+    padding: 1.1rem 2rem;
+  }
+}
+
+.search-trigger-compact {
+  height: 48px;
+  padding: 0.35rem 0.75rem 0.35rem 0.4rem;
+  border-radius: var(--radius-md);
+  gap: 0.6rem;
+}
+
+.mode-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-primary);
+}
+
+.favorites-bar {
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-raised);
+}
+
+.favorites-bar-inner {
+  margin: 0 auto;
+  max-width: 72rem;
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.75rem 1rem 0.9rem;
+  scrollbar-width: none;
+}
+
+.favorites-bar-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.favorites-bar-inner > * {
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .favorites-bar-inner {
+    padding: 0.75rem 2rem 0.9rem;
+  }
+}
+
+.footer-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.5rem;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.footer-action:hover {
+  color: var(--color-text);
+  background: var(--color-primary-light);
+}
+
+.footer-action-danger {
+  color: var(--color-danger);
+}
+
+.footer-action-danger:hover {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.login-error {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-danger-border);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* ---------------------------------------------------------------------------
+ * Day view
+ * ------------------------------------------------------------------------- */
+
+.day-container {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 56rem;
+}
+
+@media (min-width: 640px) {
+  .day-container {
+    padding: 1.5rem 2rem;
+  }
+}
+
+.day-surface {
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .day-surface {
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-lg);
+  }
+}
+
+.stale-note,
+.hidden-lessons-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.stale-note {
+  color: var(--color-warning);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.hidden-lessons-note {
+  justify-content: center;
+  border-top: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+}
+
+.hidden-lessons-note:hover {
+  color: var(--color-primary);
+}
+
+/* ---------------------------------------------------------------------------
+ * Lessons. Two lines (hour | subject + teacher | room, then the info text
+ * below) in narrow containers; a single row once the container is wide.
+ * ------------------------------------------------------------------------- */
+
+.lesson-list {
+  container-type: inline-size;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--color-surface-raised);
+}
+
+.lesson {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "hour main room"
+    "hour info info";
+  column-gap: 0.85rem;
+  row-gap: 0.3rem;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.lesson.no-info {
+  grid-template-areas: "hour main room";
+}
+
+.lesson:last-child {
+  border-bottom: none;
+}
+
+.lesson-hour {
+  grid-area: hour;
+  align-self: start;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.lesson-main {
+  grid-area: main;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lesson-subject {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.lesson-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.65rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.lesson-room {
+  grid-area: room;
+  align-self: start;
+}
+
+.lesson-info {
+  grid-area: info;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.room-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.lesson .is-changed {
+  color: var(--color-danger);
+}
+
+.room-badge.is-changed {
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
+}
+
+.lesson.is-cancelled {
+  background: var(--color-danger-bg);
+  border-bottom-color: var(--color-danger-border);
+}
+
+.lesson.is-cancelled .lesson-hour,
+.lesson.is-cancelled .lesson-subject,
+.lesson.is-cancelled .lesson-info {
+  color: var(--color-danger);
+}
+
+.lesson.is-cancelled .lesson-subject-text {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-danger);
+}
+
+@container (min-width: 38rem) {
+  .lesson,
+  .lesson.no-info {
+    grid-template-columns: 2.5rem minmax(9rem, 1fr) 5.5rem minmax(0, 1.6fr);
+    grid-template-areas: "hour main room info";
+    column-gap: 1.25rem;
+    padding: 0.95rem 1.25rem;
+  }
+
+  .lesson-hour,
+  .lesson-room {
+    align-self: center;
+  }
+
+  .lesson-room {
+    justify-self: start;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Week view: horizontally scrolling day cards, a 5-column grid when they fit.
+ * ------------------------------------------------------------------------- */
+
+.week-scroller {
+  position: relative;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 1rem;
+  padding: 1rem;
+}
+
+.week-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(86vw, 22rem);
+  gap: 1rem;
+  align-items: start;
+}
+
+.week-day {
+  scroll-snap-align: start;
+  overflow: hidden;
+}
+
+.week-day[aria-current="date"] {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.week-day-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.week-day-header:hover {
+  background: var(--color-primary-light);
+}
+
+.today-badge {
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+@media (min-width: 1280px) {
+  .week-scroller {
+    overflow-x: visible;
+    scroll-snap-type: none;
+    padding: 1.25rem 2rem;
+  }
+
+  .week-grid {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Picker and toast
+ * ------------------------------------------------------------------------- */
+
+.palette-item {
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.palette-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.palette-item[aria-selected="true"] .palette-item-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.palette-item-hint {
+  color: var(--color-text-muted);
+}
+
+.palette-item[aria-selected="true"] .palette-item-hint {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.palette-footer {
+  display: none;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+@media (pointer: fine) {
+  .palette-footer {
+    display: flex;
+  }
+}
+
+.toast-region {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(1.25rem + env(safe-area-inset-bottom));
+  z-index: 150;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+  pointer-events: none;
+}
+
+.toast {
+  max-width: 28rem;
+  padding: 0.7rem 1.1rem;
+  border-radius: 999px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  animation: toast-in 180ms ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .day-surface,
+  .lesson-list {
+    background: var(--color-surface);
+  }
 }

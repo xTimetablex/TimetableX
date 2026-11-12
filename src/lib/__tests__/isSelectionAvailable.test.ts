@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeIsSelectionAvailable } from '../hooks/useTimetable';
+import { computeIsSelectionAvailable } from '../dayState';
 import { TimetableData } from '../types';
 
 const makeDay = (classes: string[]): TimetableData => ({

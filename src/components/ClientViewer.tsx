@@ -1,402 +1,467 @@
 'use client';
 
-import Link from 'next/link';
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { AlertCircle, Calendar, CheckCircle2, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 
-import CommandPalette from './CommandPalette';
-import ConsentSettingsButton from './ConsentSettingsButton';
-import LoginForm from './LoginForm';
-import SelectionMenu from './SelectionMenu';
-import TimetableHeader from './TimetableHeader';
-import TimetableTable from './TimetableTable';
+import AppFooter from './AppFooter';
 import BlacklistModal from './BlacklistModal';
-import WeekTimetableView from './WeekTimetableView';
+import CommandPalette from './CommandPalette';
+import DayContent from './DayContent';
+import ErrorState from './ErrorState';
+import FavoritesBar from './FavoritesBar';
 import LoadingBar from './LoadingBar';
-import { TimetableSkeleton, WeekTimetableSkeleton } from './TimetableSkeleton';
-import { Button } from './button';
+import LoginForm from './LoginForm';
+import SelectionPrompt from './SelectionPrompt';
+import TimetableHeader from './TimetableHeader';
+import Toast from './Toast';
+import WeekTimetableView from './WeekTimetableView';
+import { AppSkeleton, TimetableBodySkeleton } from './TimetableSkeleton';
 
-import { useAuth } from '@/lib/hooks/useAuth';
-import { useFavorites } from '@/lib/hooks/useFavorites';
-import { useTimetable } from '@/lib/hooks/useTimetable';
-import { useAvailableSubjects } from '@/lib/hooks/useAvailableSubjects';
-import { useExtendedEntities } from '@/lib/hooks/useExtendedEntities';
-import { SearchItem, FilterMode, ViewMode } from '@/lib/types';
-import { addDays, formatDateStr, getTodayStr, getWeekStart, parseDateStr } from '@/lib/date';
 import { track } from '@/lib/analytics';
+import {
+  addDays,
+  formatDateStr,
+  formatDayLabel,
+  formatUpdatedAt,
+  formatWeekLabel,
+  getDefaultDateStr,
+  getSchoolWeekDates,
+  getTodayStr,
+  isValidDateStr,
+  parseDateStr,
+  shiftSchoolDay,
+} from '@/lib/date';
+import { getAvailableValues, sortNatural } from '@/lib/dayState';
+import { entityKey } from '@/lib/history';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { clearStoredHistory, useHistory } from '@/lib/hooks/useHistory';
+import { usePreferences } from '@/lib/hooks/usePreferences';
+import { useSwipe } from '@/lib/hooks/useSwipe';
+import { usePrefetchNeighbours, useTimetableDays } from '@/lib/hooks/useTimetable';
+import {
+  clearPreferences,
+  isSameEntity,
+  MAX_FAVORITES,
+  setSelection,
+  toggleBlacklistedSubject,
+  toggleFavorite,
+} from '@/lib/preferences';
+import { getViewDates } from '@/lib/timetableQuery';
+import { AuthIdentity, FilterMode, SearchItem, Selection, ViewMode } from '@/lib/types';
 
 interface ClientViewerProps {
-  currentDateStr?: string;
-  currentViewMode?: ViewMode;
-  currentStep?: 'selection' | 'timetable';
+  /** Read from the session cookie by the server; `null` shows the login form. */
+  initialIdentity: AuthIdentity | null;
+  /** Computed on the server so both sides render the same day. */
+  defaultDateStr: string;
+  todayStr: string;
 }
 
-function pushDate(router: ReturnType<typeof useRouter>, dateStr: string, viewMode: ViewMode) {
-  router.push(`/app?date=${dateStr}&view=${viewMode}&step=timetable`);
-}
+export default function ClientViewer({ initialIdentity, defaultDateStr, todayStr }: ClientViewerProps) {
+  const { identity, isMigrating, login, logout } = useAuth(initialIdentity);
+  const queryClient = useQueryClient();
 
-function getDayOffsetDate(dateStr: string | undefined, offset: number): string {
-  const base = dateStr ? parseDateStr(dateStr) : new Date();
-  const d = addDays(base, offset);
+  const handleLogout = useCallback(async () => {
+    await logout();
+    // Start clean, e.g. for the next person on a shared school computer.
+    clearPreferences();
+    clearStoredHistory();
+    queryClient.clear();
+  }, [logout, queryClient]);
 
-  if (offset > 0) {
-    if (d.getDay() === 6) d.setDate(d.getDate() + 2);
-    else if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-  } else if (offset < 0) {
-    if (d.getDay() === 0) d.setDate(d.getDate() - 2);
-    else if (d.getDay() === 6) d.setDate(d.getDate() - 1);
+  if (!identity) {
+    if (isMigrating) return <AppSkeleton viewMode="day" />;
+    return <LoginForm onLogin={login} />;
   }
 
-  return formatDateStr(d);
+  return (
+    <TimetableApp
+      identity={identity}
+      initialDefaultDateStr={defaultDateStr}
+      initialTodayStr={todayStr}
+      onLogout={handleLogout}
+    />
+  );
 }
 
-function pushStep(router: ReturnType<typeof useRouter>, step: 'selection' | 'timetable', dateStr?: string, viewMode?: ViewMode) {
-  const params = new URLSearchParams();
-  if (dateStr) params.set('date', dateStr);
-  if (viewMode) params.set('view', viewMode);
-  if (step === 'timetable') params.set('step', 'timetable');
-  router.push(`/app?${params.toString()}`);
-}
+/** After this long in the background, the app jumps back to the default day. */
+const RESET_AFTER_HIDDEN_MS = 2 * 60 * 60 * 1000;
+const TOAST_DURATION_MS = 2600;
 
-const selectionModeLabel: Record<FilterMode, string> = {
-  class: 'Klasse',
-  room: 'Raum',
-  teacher: 'Lehrer',
-};
+type NavigateTrigger = 'button' | 'keyboard' | 'swipe';
 
-export default function ClientViewer({ currentDateStr, currentViewMode = 'day', currentStep = 'selection' }: ClientViewerProps) {
-  const router = useRouter();
-  const { creds, isLogged, login, logout, isInitialized } = useAuth();
-  const { favorites, toggleFavorite, isFavorite } = useFavorites();
-  const {
-    data,
-    error,
-    isLoading,
-    filteredEntries,
-    filterMode,
-    setFilterMode,
-    selectedValue,
-    setSelectedValue,
-    currentBlacklist,
-    addToBlacklist,
-    removeFromBlacklist,
-    filteredDays,
-    refetch,
-    isSelectionAvailable,
-  } = useTimetable(creds, currentDateStr, currentViewMode);
+function TimetableApp({
+  identity,
+  initialDefaultDateStr,
+  initialTodayStr,
+  onLogout,
+}: {
+  identity: AuthIdentity;
+  initialDefaultDateStr: string;
+  initialTodayStr: string;
+  onLogout: () => void;
+}) {
+  const searchParams = useSearchParams();
+  const [defaultDateStr, setDefaultDateStr] = useState(initialDefaultDateStr);
+  const [todayStr, setTodayStr] = useState(initialTodayStr);
 
-  const { availableSubjects, isLoadingSubjects } = useAvailableSubjects(
-    creds,
-    filterMode,
-    selectedValue
+  const urlDate = searchParams.get('date');
+  const viewMode: ViewMode = searchParams.get('view') === 'week' ? 'week' : 'day';
+  const dateStr = isValidDateStr(urlDate) ? urlDate : defaultDateStr;
+
+  // URL changes go through the History API: Next.js keeps useSearchParams in
+  // sync without a server round trip, and replacing (not pushing) keeps the
+  // back button from walking through every day you looked at.
+  const navigate = useCallback((next: { date?: string | null; view?: ViewMode }) => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('step'); // from the old two-step flow
+    if (next.date === null) params.delete('date');
+    else if (next.date) params.set('date', next.date);
+    if (next.view === 'week') params.set('view', 'week');
+    else if (next.view === 'day') params.delete('view');
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `/app?${query}` : '/app');
+  }, []);
+
+  // Keep "today" current in long-running sessions, and after a long break
+  // (a PWA resumed the next morning) go back to the day that matters now.
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+
+    const refreshClock = () => {
+      setTodayStr(getTodayStr());
+      setDefaultDateStr(getDefaultDateStr());
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      refreshClock();
+      if (hiddenAt !== null && Date.now() - hiddenAt > RESET_AFTER_HIDDEN_MS) {
+        navigate({ date: null });
+      }
+      hiddenAt = null;
+    };
+
+    const interval = setInterval(refreshClock, 60_000);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [navigate]);
+
+  const prefs = usePreferences();
+  const selection = prefs ? prefs.selection : undefined;
+  const favorites = useMemo(() => prefs?.favorites ?? [], [prefs]);
+  const blacklist = useMemo(
+    () => (prefs?.selection ? prefs.blacklist[prefs.selection.value] ?? [] : []),
+    [prefs]
   );
 
-  const { extendedClasses, extendedRooms, extendedTeachers } = useExtendedEntities(creds);
+  const dates = useMemo(() => getViewDates(dateStr, viewMode), [dateStr, viewMode]);
+  const { days, isFetching, authError, fatalError, refetch } = useTimetableDays(identity, dates);
+  const primaryDay = viewMode === 'day' ? days[0] : days.find(day => day.dateStr === todayStr) ?? days[0];
 
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isBlacklistOpen, setIsBlacklistOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsPaletteOpen(prev => {
-          if (!prev) track('command_palette_opened', { trigger: 'keyboard' });
-          return !prev;
-        });
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+  const showToast = useCallback((message: string) => {
+    clearTimeout(toastTimer.current);
+    setToast(message);
+    toastTimer.current = setTimeout(() => setToast(null), TOAST_DURATION_MS);
   }, []);
 
-  const handleSelect = (item: SearchItem) => {
-    track('entity_selected', { filter_mode: item.type });
-    setFilterMode(item.type as FilterMode);
-    setSelectedValue(item.name);
-  };
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  // The history (other classes/rooms/teachers, subjects) is only needed by the
+  // picker and the subject dialog. Load it when one opens, when there is no
+  // selection yet, or once the plan is on screen and the app is idle.
+  const hasLoadedPlan = days.some(day => !!day.data);
+  const [isIdle, setIsIdle] = useState(false);
+  useEffect(() => {
+    if (!hasLoadedPlan || isIdle) return;
+    const id = setTimeout(() => setIsIdle(true), 2500);
+    return () => clearTimeout(id);
+  }, [hasLoadedPlan, isIdle]);
+
+  const history = useHistory(
+    identity,
+    isPaletteOpen || isBlacklistOpen || selection === null || isIdle
+  );
+
+  usePrefetchNeighbours(identity, dateStr, viewMode === 'day' && !!days[0]?.data);
 
   const searchItems = useMemo(() => {
-    const currentClasses  = data?.availableClasses ?? [];
-    const currentRooms    = data?.availableRooms ?? [];
-    const currentTeachers = data?.availableTeachers ?? [];
-
-    const allClasses  = Array.from(new Set([...currentClasses,  ...extendedClasses])).sort();
-    const allRooms    = Array.from(new Set([...currentRooms,    ...extendedRooms])).sort();
-    const allTeachers = Array.from(new Set([...currentTeachers, ...extendedTeachers])).sort();
+    const collect = (mode: FilterMode, fromHistory: string[] = []) => {
+      const values = new Set(fromHistory);
+      days.forEach(day => getAvailableValues(day.data, mode).forEach(value => values.add(value)));
+      return sortNatural(values);
+    };
 
     const items: SearchItem[] = [];
-    allClasses.forEach(c => items.push({ id: c, name: c, type: 'class' }));
-    allRooms.forEach(r => items.push({ id: r, name: r, type: 'room' }));
-    allTeachers.forEach(t => items.push({ id: t, name: t, type: 'teacher' }));
+    const add = (type: FilterMode, values: string[]) =>
+      values.forEach(name => items.push({ id: `${type}:${name}`, name, type }));
+    add('class', collect('class', history.data?.classes));
+    add('room', collect('room', history.data?.rooms));
+    add('teacher', collect('teacher', history.data?.teachers));
     return items;
-  }, [data, extendedClasses, extendedRooms, extendedTeachers]);
+  }, [days, history.data]);
 
-  const navigateDay = (offset: number) => {
-    track('date_navigated', { direction: offset > 0 ? 'forward' : 'backward', view_mode: currentViewMode });
-    const nextDate = currentViewMode === 'week'
-      ? formatDateStr(addDays(currentDateStr ? parseDateStr(currentDateStr) : new Date(), offset * 7))
-      : getDayOffsetDate(currentDateStr, offset);
+  const promptClasses = useMemo(
+    () => searchItems.filter(item => item.type === 'class').map(item => item.name),
+    [searchItems]
+  );
 
-    pushDate(router, nextDate, currentViewMode);
+  const blacklistSubjects = useMemo(() => {
+    if (!selection) return [];
+    const subjects = new Set(history.data?.subjects[entityKey(selection.mode, selection.value)] ?? []);
+    days.forEach(day =>
+      day.data?.entries.forEach(entry => {
+        const matches =
+          (selection.mode === 'class' && entry.class === selection.value) ||
+          (selection.mode === 'room' && entry.room === selection.value) ||
+          (selection.mode === 'teacher' && entry.teacher === selection.value);
+        if (matches && entry.subject && entry.subject !== '---') subjects.add(entry.subject);
+      })
+    );
+    blacklist.forEach(subject => subjects.add(subject));
+    return sortNatural(subjects);
+  }, [selection, history.data, days, blacklist]);
+
+  // --- Actions -------------------------------------------------------------
+
+  const chooseSelection = useCallback((next: Selection, source: 'picker' | 'favorite' | 'prompt') => {
+    track(source === 'favorite' ? 'favorite_selected' : 'entity_selected', { filter_mode: next.mode });
+    setSelection(next);
+  }, []);
+
+  const openPicker = useCallback((trigger: 'button' | 'keyboard') => {
+    track('command_palette_opened', { trigger });
+    // Commit synchronously so the input is focused inside the user gesture.
+    flushSync(() => setIsPaletteOpen(true));
+  }, []);
+
+  const navigateBy = useCallback((offset: 1 | -1, trigger: NavigateTrigger) => {
+    track('date_navigated', { direction: offset > 0 ? 'forward' : 'backward', view_mode: viewMode, trigger });
+    const next = viewMode === 'week'
+      ? formatDateStr(addDays(parseDateStr(dateStr), offset * 7))
+      : shiftSchoolDay(dateStr, offset);
+    navigate({ date: next });
+  }, [dateStr, viewMode, navigate]);
+
+  const goToToday = useCallback(() => {
+    track('navigate_to_today', { view_mode: viewMode });
+    navigate({ date: getTodayStr() });
+  }, [viewMode, navigate]);
+
+  const changeViewMode = useCallback((mode: ViewMode) => {
+    if (mode === viewMode) return;
+    track('view_mode_changed', { view: mode });
+    navigate({ view: mode, date: dateStr });
+  }, [viewMode, dateStr, navigate]);
+
+  const refresh = useCallback(() => {
+    track('timetable_refreshed');
+    void refetch();
+  }, [refetch]);
+
+  const handleToggleFavorite = () => {
+    if (!selection) return;
+    const result = toggleFavorite(selection);
+    if (result === 'limit') {
+      showToast(`Maximal ${MAX_FAVORITES} Favoriten. Entferne zuerst einen anderen.`);
+      return;
+    }
+    track('favorite_toggled', { action: result, filter_mode: selection.mode });
+    showToast(result === 'added' ? `${selection.value} ist jetzt ein Favorit` : `${selection.value} aus Favoriten entfernt`);
   };
 
-  if (!isInitialized) return null;
-  if (!isLogged) return <LoginForm onLogin={login} />;
+  const handleToggleSubject = (subject: string) => {
+    if (!selection) return;
+    const result = toggleBlacklistedSubject(selection.value, subject);
+    track('blacklist_subject_toggled', { action: result });
+  };
 
-  const todayStr = getTodayStr();
-  const currentDate = currentDateStr ? parseDateStr(currentDateStr) : new Date();
-  const currentWeekStartStr = formatDateStr(getWeekStart(currentDate));
-  const todayWeekStartStr = formatDateStr(getWeekStart(new Date()));
-  const isToday = currentViewMode === 'week'
-    ? currentWeekStartStr === todayWeekStartStr
-    : !currentDateStr || currentDateStr === todayStr;
+  // --- Keyboard shortcuts and swipe ----------------------------------------
 
-  const isWeekData = !!data && 'days' in data;
-  const isEmptyDay =
-    !isWeekData && (data?.isWeekend || (data && data.entries.length === 0 && !data.dayNotes?.length));
-  const isEmptyWeek =
-    isWeekData &&
-    filteredDays.length > 0 &&
-    filteredDays.every(day => day.filteredEntries.length === 0) &&
-    filteredDays.every(day => !day.dayNotes?.length);
-  const selectionLabel = `${selectionModeLabel[filterMode]}: ${selectedValue || '—'}`;
+  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      if (isPaletteOpen) setIsPaletteOpen(false);
+      else if (!isBlacklistOpen) openPicker('keyboard');
+      return;
+    }
+
+    if (isPaletteOpen || isBlacklistOpen) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        navigateBy(-1, 'keyboard');
+        break;
+      case 'ArrowRight':
+        navigateBy(1, 'keyboard');
+        break;
+      case 't':
+        goToToday();
+        break;
+      case 'd':
+        changeViewMode('day');
+        break;
+      case 'w':
+        changeViewMode('week');
+        break;
+      case 'r':
+        refresh();
+        break;
+      case '/':
+        event.preventDefault();
+        openPicker('keyboard');
+        break;
+      default:
+        return;
+    }
+  });
+
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => handleKeyDown(event);
+    window.addEventListener('keydown', listener);
+    return () => window.removeEventListener('keydown', listener);
+  }, []);
+
+  const contentRef = useRef<HTMLDivElement>(null);
+  useSwipe(
+    contentRef,
+    direction => navigateBy(direction, 'swipe'),
+    viewMode === 'day' && !isPaletteOpen && !isBlacklistOpen
+  );
+
+  // --- Render --------------------------------------------------------------
+
+  const weekDates = viewMode === 'week' ? getSchoolWeekDates(parseDateStr(dateStr)) : null;
+  const dateLabel = weekDates
+    ? formatWeekLabel(weekDates[0], weekDates[4])
+    : formatDayLabel(parseDateStr(dateStr));
+  const isToday = viewMode === 'week' ? dates.includes(todayStr) : dateStr === todayStr;
+  const updatedLabel = formatUpdatedAt(primaryDay?.data?.updatedAt, todayStr);
+
+  const dayContentProps = {
+    blacklist,
+    todayStr,
+    onRetry: refresh,
+    onRelogin: onLogout,
+    onOpenBlacklist: () => setIsBlacklistOpen(true),
+    onOpenPicker: () => openPicker('button'),
+    onGoToDate: (date: string) => navigate({ date }),
+  };
+
+  let body;
+  if (selection === undefined) {
+    // Stored preferences are read right after hydration.
+    body = <TimetableBodySkeleton viewMode={viewMode} />;
+  } else if (authError) {
+    body = (
+      <div className="day-container">
+        <ErrorState error={authError} onRetry={refresh} onRelogin={onLogout} />
+      </div>
+    );
+  } else if (selection === null) {
+    body = (
+      <SelectionPrompt
+        classes={promptClasses}
+        isLoading={history.isFetching || days.some(day => day.isPending)}
+        onSelect={next => chooseSelection(next, 'prompt')}
+        onOpenPicker={() => openPicker('button')}
+      />
+    );
+  } else if (fatalError && viewMode === 'week') {
+    body = (
+      <div className="day-container">
+        <ErrorState error={fatalError} onRetry={refresh} onRelogin={onLogout} />
+      </div>
+    );
+  } else if (viewMode === 'week') {
+    body = (
+      <WeekTimetableView
+        {...dayContentProps}
+        days={days}
+        selection={selection}
+        onOpenDay={date => navigate({ date, view: 'day' })}
+      />
+    );
+  } else {
+    body = (
+      <div className="day-container">
+        <div className="day-surface">
+          <DayContent {...dayContentProps} day={days[0]} selection={selection} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col">
-      <LoadingBar active={isLoading} />
+      <LoadingBar active={isFetching} />
+
+      <TimetableHeader
+        selection={selection}
+        isFavorite={favorites.some(f => isSameEntity(f, selection))}
+        onToggleFavorite={handleToggleFavorite}
+        onOpenPicker={() => openPicker('button')}
+        dateLabel={dateLabel}
+        updatedLabel={updatedLabel}
+        viewMode={viewMode}
+        onChangeViewMode={changeViewMode}
+        onNavigate={offset => navigateBy(offset, 'button')}
+        onToday={goToToday}
+        isToday={isToday}
+        onRefresh={refresh}
+        isRefreshing={isFetching}
+        onOpenBlacklist={() => setIsBlacklistOpen(true)}
+      />
+
+      <FavoritesBar
+        favorites={favorites}
+        selection={selection ?? null}
+        onSelect={favorite => chooseSelection(favorite, 'favorite')}
+      />
+
+      <div ref={contentRef} className="flex-1">
+        {body}
+      </div>
+
+      <AppFooter identity={identity} onLogout={onLogout} />
+
       <CommandPalette
         isOpen={isPaletteOpen}
         onClose={() => setIsPaletteOpen(false)}
-        onSelect={handleSelect}
+        onSelect={next => chooseSelection(next, 'picker')}
         items={searchItems}
+        favorites={favorites}
+        current={selection ?? null}
+        isLoadingMore={history.isFetching}
       />
+
       <BlacklistModal
-        isOpen={isBlacklistOpen}
+        isOpen={isBlacklistOpen && !!selection}
         onClose={() => setIsBlacklistOpen(false)}
-        currentEntity={selectedValue}
-        availableSubjects={availableSubjects}
-        isLoadingSubjects={isLoadingSubjects}
-        currentBlacklist={currentBlacklist}
-        addToBlacklist={addToBlacklist}
-        removeFromBlacklist={removeFromBlacklist}
+        entityLabel={selection?.value ?? ''}
+        subjects={blacklistSubjects}
+        hidden={blacklist}
+        isLoading={history.isFetching}
+        onToggle={handleToggleSubject}
       />
 
-      <div className="flex-1">
-        {currentStep === 'selection' ? (
-          <section className="flex min-h-[100dvh] items-start justify-center px-4 pb-8 sm:px-6 lg:px-8">
-          <div className="w-full max-w-2xl mx-auto">
-            <SelectionMenu
-              filterMode={filterMode}
-              selectedValue={selectedValue}
-              onOpenPalette={() => { track('command_palette_opened', { trigger: 'button' }); setIsPaletteOpen(true); }}
-              isFavorite={isFavorite(filterMode, selectedValue)}
-              onToggleFavorite={() => toggleFavorite(filterMode, selectedValue)}
-              onLogout={logout}
-              favorites={favorites}
-              onSelectFavorite={(mode, value) => {
-                track('favorite_selected', { filter_mode: mode });
-                setFilterMode(mode);
-                setSelectedValue(value);
-              }}
-              onContinue={() => pushStep(router, 'timetable', currentDateStr || getTodayStr(), currentViewMode)}
-            />
-          </div>
-        </section>
-      ) : (
-        <section className="panel panel-flat">
-          <TimetableHeader
-            isLoading={isLoading}
-            dateText={data?.date}
-            selectionLabel={selectionLabel}
-            onNavigate={navigateDay}
-            onBackToSelection={() => pushStep(router, 'selection', currentDateStr, currentViewMode)}
-            onOpenBlacklist={() => setIsBlacklistOpen(true)}
-            isToday={isToday}
-            viewMode={currentViewMode}
-            onChangeViewMode={(mode) => {
-              track('view_mode_changed', { view: mode });
-              const nextDate = currentDateStr || todayStr;
-              pushDate(router, nextDate, mode);
-            }}
-            onToday={() => {
-              track('navigate_to_today', { view_mode: currentViewMode });
-              const today = getTodayStr();
-              pushDate(router, today, currentViewMode);
-            }}
-          />
-
-          <div>
-            {isLoading && !data ? (
-              <>
-                <output className="sr-only">Daten werden geladen…</output>
-                {currentViewMode === 'week' ? (
-                  <WeekTimetableSkeleton showClassColumn={filterMode !== 'class'} />
-                ) : (
-                  <TimetableSkeleton showClassColumn={filterMode !== 'class'} rows={8} />
-                )}
-              </>
-            ) : error ? (
-              <div className="flex flex-col items-center justify-center py-20 px-6 gap-5 text-center">
-                <div
-                  className="flex items-center justify-center"
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: '50%',
-                    background: 'var(--color-danger-bg)',
-                    color: 'var(--color-danger)',
-                  }}
-                >
-                  <AlertCircle className="size-7" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="text-base font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
-                    {error.message}
-                  </p>
-                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    Der Plan existiert möglicherweise noch nicht oder die Anmeldedaten sind abgelaufen.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => { track('timetable_refreshed'); refetch(); }}
-                  variant="primary" className="text-sm"
-                  style={{ padding: '0.75rem 1.5rem' }}
-                >
-                  <RefreshCw className="size-4" strokeWidth={2} />
-                  Erneut versuchen
-                </Button>
-              </div>
-            ) : isEmptyDay ? (
-              <div className="flex flex-col items-center justify-center py-20 px-6 gap-5 text-center">
-                <div
-                  className="flex items-center justify-center"
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: '50%',
-                    background: 'var(--color-primary-light)',
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  {data?.isWeekend
-                    ? <Calendar className="size-7" strokeWidth={1.75} />
-                    : <CheckCircle2 className="size-7" strokeWidth={1.75} />
-                  }
-                </div>
-                <div>
-                  <p className="text-base font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
-                    {data?.isWeekend ? 'Wochenende' : 'Kein Unterricht'}
-                  </p>
-                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    {data?.isWeekend
-                      ? 'Genieß die freie Zeit! Es ist kein Plan verfügbar.'
-                      : 'An diesem Tag findet kein Unterricht statt oder der Plan ist noch nicht verfügbar.'}
-                  </p>
-                </div>
-                <Button
-                  onClick={() => { track('timetable_refreshed'); refetch(); }}
-                  variant="outline" className="text-sm"
-                  style={{ padding: '0.625rem 1.25rem' }}
-                >
-                  <RefreshCw className="size-3.5" strokeWidth={2} />
-                  Aktualisieren
-                </Button>
-              </div>
-            ) : isEmptyWeek ? (
-              <div className="flex flex-col items-center justify-center py-20 px-6 gap-5 text-center">
-                <div
-                  className="flex items-center justify-center"
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: '50%',
-                    background: 'var(--color-primary-light)',
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  <Calendar className="size-7" strokeWidth={1.75} />
-                </div>
-                <div>
-                  <p className="text-base font-semibold mb-1" style={{ color: 'var(--color-text)' }}>
-                    Keine Einträge in dieser Woche
-                  </p>
-                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    Für die aktuelle Auswahl gibt es in dieser Woche keine passenden Vertretungen.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => { track('timetable_refreshed'); refetch(); }}
-                  variant="outline" className="text-sm"
-                  style={{ padding: '0.625rem 1.25rem' }}
-                >
-                  <RefreshCw className="size-3.5" strokeWidth={2} />
-                  Aktualisieren
-                </Button>
-              </div>
-            ) : data ? (
-              currentViewMode === 'week' && isWeekData ? (
-                <WeekTimetableView
-                  days={filteredDays}
-                  showClassColumn={filterMode !== 'class'}
-                  selectionLabel={selectedValue}
-                />
-              ) : (
-                <TimetableTable
-                  entries={filteredEntries}
-                  showClassColumn={filterMode !== 'class'}
-                  isSelectionAvailable={isSelectionAvailable}
-                  selectionLabel={selectedValue}
-                />
-              )
-            ) : null}
-          </div>
-
-          {!isWeekData && data?.dayNotes && data.dayNotes.length > 0 && (
-            <div className="day-notes">
-              <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--color-warning)' }}>
-                <AlertCircle className="size-4 flex-shrink-0" strokeWidth={2} />
-                <span className="text-sm font-semibold">Besondere Hinweise</span>
-              </div>
-              <div className="space-y-1.5">
-                {data.dayNotes.map((note) => (
-                  <p
-                    key={note}
-                    className="text-sm leading-relaxed"
-                    style={{ color: 'var(--color-text)' }}
-                  >
-                    {note}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-      </div>
-
-      <footer
-        className="mx-auto flex w-full max-w-4xl flex-col items-center justify-between gap-3 px-4 py-6 text-sm sm:flex-row sm:px-6 lg:px-8 mt-auto"
-        style={{ color: 'var(--color-text-muted)' }}
-      >
-        <p className="text-center sm:text-left">TimetableX</p>
-        <nav className="flex items-center gap-4">
-          <Link
-            href="/datenschutz"
-            className="transition-colors hover:text-[var(--color-text)]"
-          >
-            Datenschutz
-          </Link>
-          <Link
-            href="/impressum"
-            className="transition-colors hover:text-[var(--color-text)]"
-          >
-            Impressum
-          </Link>
-          <ConsentSettingsButton />
-        </nav>
-      </footer>
+      <Toast message={toast} />
     </div>
   );
 }

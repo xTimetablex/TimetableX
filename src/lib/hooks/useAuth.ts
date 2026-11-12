@@ -3,70 +3,57 @@
 import { useEffect, useState } from 'react';
 import { AuthIdentity, Credentials } from '@/lib/types';
 import { track } from '@/lib/analytics';
-import { migrateLegacyCredentials } from '@/lib/authMigration';
+import { hasLegacyCredentials, migrateLegacyCredentials } from '@/lib/authMigration';
 
-export function useAuth() {
-  const [creds, setCreds] = useState<AuthIdentity | null>(null);
-  const [isLogged, setIsLogged] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+/**
+ * Session identity. The server reads the session cookie while rendering
+ * `/app` and passes the identity in, so there is no client round trip to find
+ * out whether someone is logged in.
+ */
+export function useAuth(initialIdentity: AuthIdentity | null) {
+  const [identity, setIdentity] = useState<AuthIdentity | null>(initialIdentity);
+  const [isMigrating, setIsMigrating] = useState(false);
 
+  // One-time exchange of pre-cookie localStorage credentials for a session.
   useEffect(() => {
+    if (initialIdentity || !hasLegacyCredentials()) return;
+
     let cancelled = false;
-
-    (async () => {
-      const migrated = await migrateLegacyCredentials();
-      if (cancelled) return;
-
-      if (migrated) {
-        setCreds(migrated);
-        setIsLogged(true);
-        setIsInitialized(true);
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/auth', { cache: 'no-store' });
-        const identity = res.ok ? ((await res.json()).identity as AuthIdentity | null) : null;
-        if (cancelled) return;
-        setCreds(identity);
-        setIsLogged(!!identity);
-      } catch {
-        if (cancelled) return;
-        setCreds(null);
-        setIsLogged(false);
-      } finally {
-        if (!cancelled) setIsInitialized(true);
-      }
-    })();
+    setIsMigrating(true);
+    migrateLegacyCredentials()
+      .then(migrated => {
+        if (!cancelled && migrated) setIdentity(migrated);
+      })
+      .finally(() => {
+        if (!cancelled) setIsMigrating(false);
+      });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialIdentity]);
 
-  const login = async (newCreds: Credentials) => {
+  const login = async (credentials: Credentials) => {
     const res = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newCreds),
+      body: JSON.stringify(credentials),
     });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({}));
 
     if (!res.ok) {
       throw new Error(json.error || 'Anmeldung fehlgeschlagen.');
     }
 
-    setCreds(json.identity);
-    setIsLogged(true);
-    track('user_logged_in', { school: newCreds.school });
+    setIdentity(json.identity);
+    track('user_logged_in', { school: credentials.school });
   };
 
   const logout = async () => {
     await fetch('/api/auth', { method: 'DELETE' }).catch(() => undefined);
-    setCreds(null);
-    setIsLogged(false);
+    setIdentity(null);
     track('user_logged_out');
   };
 
-  return { creds, isLogged, login, logout, isInitialized };
+  return { identity, isMigrating, login, logout };
 }

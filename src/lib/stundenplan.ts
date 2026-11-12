@@ -1,11 +1,53 @@
+import { createHash } from 'crypto';
 import { parseStringPromise } from 'xml2js';
-import { formatDateStr, formatDayLabel, formatWeekLabel, getWeekDates, parseDateStr } from './date';
+import {
+  formatDateStr,
+  formatDayLabel,
+  formatWeekLabel,
+  getTodayStr,
+  getWeekDates,
+  isWeekendDate,
+  parseDateStr,
+} from './date';
 import { TimetableData, TimetableDayData, TimetableEntry, TimetableWeekData } from './types';
 
 const FALLBACK_VALUE = '---';
 
-function getFallbackDate(dateStr: string): string {
-  return formatDayLabel(parseDateStr(dateStr));
+/** Upstream requests that hang longer than this count as "unreachable". */
+const UPSTREAM_TIMEOUT_MS = 10_000;
+
+/** stundenplan24 rejected the credentials (HTTP 401). */
+export class TimetableAuthError extends Error {
+  constructor() {
+    super('Ungültiger Benutzername oder Passwort.');
+    this.name = 'TimetableAuthError';
+  }
+}
+
+/** stundenplan24 could not be reached or answered with a server error. */
+export class TimetableUnavailableError extends Error {
+  constructor(message = 'Verbindung zum Server fehlgeschlagen.', options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'TimetableUnavailableError';
+  }
+}
+
+/**
+ * HTTP status for an error thrown while loading a plan. Matches the error
+ * classes first and falls back to the German messages for anything else.
+ */
+export function getTimetableErrorStatus(error: unknown): 401 | 502 | 500 {
+  if (error instanceof TimetableAuthError) return 401;
+  if (error instanceof TimetableUnavailableError) return 502;
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('Ungültig')) return 401;
+  if (message.includes('Verbindung')) return 502;
+  return 500;
+}
+
+function isDemoSchool(school: string): boolean {
+  return school === 'sample' || school === 'demo';
 }
 
 function cleanValue(val: any): string {
@@ -21,15 +63,13 @@ function cleanValue(val: any): string {
  * E.g. std.Ra[0].$.RaAe === 'RaGeaendert'
  */
 function hasChangeFlag(val: any, attrName: string): boolean {
-  if (typeof val === 'object' && val?.$ && val?.$[attrName]) {
-    return true;
-  }
-  return false;
+  return typeof val === 'object' && !!val?.$?.[attrName];
 }
 
 const SAMPLE_DATA: TimetableData = {
   title: 'Beispiel Stundenplan',
-  date: 'Montag, 30. März 2026 (Beispieldaten)',
+  date: 'Montag, 30. März 2026',
+  updatedAt: 'Beispieldaten',
   entries: [
     {
       class: '5/1',
@@ -74,129 +114,186 @@ const SAMPLE_DATA: TimetableData = {
       info: 'Sport fällt aus'
     }
   ],
-  availableClasses: ['5/1', '9/2', '10/1'],
-  availableRooms: ['313', '311', 'E204', '328'],
-  availableTeachers: ['KNO', 'MEY', 'STZ', 'HIN'],
+  availableClasses: ['10/1', '5/1', '9/2'],
+  availableRooms: ['311', '313', '328', 'E204'],
+  availableTeachers: ['HIN', 'KNO', 'MEY', 'STZ'],
   currentDateStr: '20260330'
 };
 
-async function fetchDayTimetable(
+function getSampleDay(dateStr: string): TimetableData {
+  return {
+    ...SAMPLE_DATA,
+    date: formatDayLabel(parseDateStr(dateStr)),
+    currentDateStr: dateStr,
+  };
+}
+
+function emptyDay(dateStr: string): TimetableData {
+  return {
+    title: 'Stundenplan',
+    date: formatDayLabel(parseDateStr(dateStr)),
+    entries: [],
+    availableClasses: [],
+    availableRooms: [],
+    availableTeachers: [],
+    currentDateStr: dateStr,
+    isWeekend: isWeekendDate(parseDateStr(dateStr)),
+  };
+}
+
+async function fetchDayFromUpstream(
   school: string,
   user: string,
   pass: string,
-  dateStr?: string
+  dateStr: string
 ): Promise<TimetableData> {
-  if (school === 'sample' || school === 'demo') {
-    return SAMPLE_DATA;
-  }
-
-  let targetDateStr = dateStr;
-  if (!targetDateStr) {
-    targetDateStr = formatDateStr(new Date());
-  }
-  
-  const url = `https://www.stundenplan24.de/${school}/wplan/wdatenk/WPlanKl_${targetDateStr}.xml`;
+  const url = `https://www.stundenplan24.de/${school}/wplan/wdatenk/WPlanKl_${dateStr}.xml`;
   const credentials = Buffer.from(`${user}:${pass}`).toString('base64');
 
+  let response: Response;
   try {
-    const response = await fetch(url, {
+    response = await fetch(url, {
       headers: { 'Authorization': `Basic ${credentials}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Ungültiger Benutzername oder Passwort.');
-      }
-      
-      const y = parseInt(targetDateStr.slice(0, 4));
-      const m = parseInt(targetDateStr.slice(4, 6)) - 1;
-      const d = parseInt(targetDateStr.slice(6, 8));
-      const dayOfWeek = new Date(y, m, d).getDay(); // 0 = Sunday, 6 = Saturday
-      
-      return {
-        title: 'Stundenplan',
-        date: getFallbackDate(targetDateStr),
-        entries: [],
-        availableClasses: [],
-        availableRooms: [],
-        availableTeachers: [],
-        currentDateStr: targetDateStr,
-        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-      };
-    }
-
-    const xml = await response.text();
-    const result = await parseStringPromise(xml);
-
-    const kopf = result.WplanVp?.Kopf?.[0] || {};
-    const datum = kopf.DatumPlan?.[0] || 'Unbekanntes Datum';
-    const zeitstempel = kopf.zeitstempel?.[0] || '';
-
-    const dayNotes: string[] = [];
-    
-    // Extract notes from ZusatzInfo and FreieTexte
-    const zusatzInfoLines = result.WplanVp?.ZusatzInfo?.[0]?.ZiZeile || [];
-    const freieTexte = result.WplanVp?.FreieTexte?.[0]?.Ft || [];
-
-    [...zusatzInfoLines, ...freieTexte].forEach(line => {
-      const text = cleanValue(line);
-      if (text !== FALLBACK_VALUE && !dayNotes.includes(text)) {
-        dayNotes.push(text);
-      }
-    });
-
-    const entries: TimetableEntry[] = [];
-    const classSet = new Set<string>();
-    const roomSet = new Set<string>();
-    const teacherSet = new Set<string>();
-
-    const klassen = result.WplanVp?.Klassen?.[0]?.Kl || [];
-
-    for (const kl of klassen) {
-      const className = cleanValue(kl.Kurz?.[0]);
-      if (className !== FALLBACK_VALUE) classSet.add(className);
-      
-      const stunden = kl.Pl?.[0]?.Std || [];
-
-      for (const std of stunden) {
-        const entry: TimetableEntry = {
-          class: className,
-          hour: cleanValue(std.St?.[0]),
-          subject: cleanValue(std.Fa?.[0]),
-          teacher: cleanValue(std.Le?.[0]),
-          room: cleanValue(std.Ra?.[0]),
-          info: cleanValue(std.If?.[0]),
-          // Flags from XML attributes
-          hourChanged: hasChangeFlag(std.St?.[0], 'StAe'),
-          subjectChanged: hasChangeFlag(std.Fa?.[0], 'FaAe'),
-          teacherChanged: hasChangeFlag(std.Le?.[0], 'LeAe'),
-          roomChanged: hasChangeFlag(std.Ra?.[0], 'RaAe'),
-        };
-        
-        entries.push(entry);
-        if (entry.room !== FALLBACK_VALUE) roomSet.add(entry.room);
-        if (entry.teacher !== FALLBACK_VALUE) teacherSet.add(entry.teacher);
-      }
-    }
-
-    return {
-      title: 'Stundenplan',
-      date: `${datum} (Aktualisiert: ${zeitstempel})`,
-      entries,
-      availableClasses: Array.from(classSet).sort(),
-      availableRooms: Array.from(roomSet).sort(),
-      availableTeachers: Array.from(teacherSet).sort(),
-      currentDateStr: targetDateStr,
-      dayNotes: dayNotes.length > 0 ? dayNotes : undefined,
-    };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('fetch')) {
-      throw new Error('Verbindung zum Server fehlgeschlagen.', { cause: error });
-    }
-    throw error;
+    throw new TimetableUnavailableError('Verbindung zum Server fehlgeschlagen.', { cause: error });
   }
+
+  if (response.status === 401) {
+    throw new TimetableAuthError();
+  }
+
+  // 404 is how stundenplan24 says "no plan published for this day". Anything
+  // else (5xx, 403, …) is a real failure and must not look like a day off.
+  if (response.status === 404) {
+    return emptyDay(dateStr);
+  }
+
+  if (!response.ok) {
+    throw new TimetableUnavailableError(
+      `Verbindung zu stundenplan24 fehlgeschlagen (HTTP ${response.status}).`
+    );
+  }
+
+  const xml = await response.text();
+  const result = await parseStringPromise(xml);
+
+  const kopf = result.WplanVp?.Kopf?.[0] || {};
+  const datum = cleanValue(kopf.DatumPlan?.[0]);
+  const zeitstempel = cleanValue(kopf.zeitstempel?.[0]);
+
+  const dayNotes: string[] = [];
+
+  // Extract notes from ZusatzInfo and FreieTexte
+  const zusatzInfoLines = result.WplanVp?.ZusatzInfo?.[0]?.ZiZeile || [];
+  const freieTexte = result.WplanVp?.FreieTexte?.[0]?.Ft || [];
+
+  [...zusatzInfoLines, ...freieTexte].forEach(line => {
+    const text = cleanValue(line);
+    if (text !== FALLBACK_VALUE && !dayNotes.includes(text)) {
+      dayNotes.push(text);
+    }
+  });
+
+  const entries: TimetableEntry[] = [];
+  const classSet = new Set<string>();
+  const roomSet = new Set<string>();
+  const teacherSet = new Set<string>();
+
+  const klassen = result.WplanVp?.Klassen?.[0]?.Kl || [];
+
+  for (const kl of klassen) {
+    const className = cleanValue(kl.Kurz?.[0]);
+    if (className !== FALLBACK_VALUE) classSet.add(className);
+
+    const stunden = kl.Pl?.[0]?.Std || [];
+
+    for (const std of stunden) {
+      const entry: TimetableEntry = {
+        class: className,
+        hour: cleanValue(std.St?.[0]),
+        subject: cleanValue(std.Fa?.[0]),
+        teacher: cleanValue(std.Le?.[0]),
+        room: cleanValue(std.Ra?.[0]),
+        info: cleanValue(std.If?.[0]),
+        // Flags from XML attributes
+        hourChanged: hasChangeFlag(std.St?.[0], 'StAe'),
+        subjectChanged: hasChangeFlag(std.Fa?.[0], 'FaAe'),
+        teacherChanged: hasChangeFlag(std.Le?.[0], 'LeAe'),
+        roomChanged: hasChangeFlag(std.Ra?.[0], 'RaAe'),
+      };
+
+      entries.push(entry);
+      if (entry.room !== FALLBACK_VALUE) roomSet.add(entry.room);
+      if (entry.teacher !== FALLBACK_VALUE) teacherSet.add(entry.teacher);
+    }
+  }
+
+  return {
+    title: 'Stundenplan',
+    date: datum !== FALLBACK_VALUE ? datum : formatDayLabel(parseDateStr(dateStr)),
+    ...(zeitstempel !== FALLBACK_VALUE ? { updatedAt: zeitstempel } : {}),
+    entries,
+    availableClasses: Array.from(classSet).sort(),
+    availableRooms: Array.from(roomSet).sort(),
+    availableTeachers: Array.from(teacherSet).sort(),
+    currentDateStr: dateStr,
+    dayNotes: dayNotes.length > 0 ? dayNotes : undefined,
+  };
+}
+
+/*
+ * Short-lived in-memory cache of upstream plans. Every visitor of a school
+ * asks for the same few XML files, and the app itself asks for neighbouring
+ * days and the recent history. Entries are keyed by the full credentials (the
+ * password only as a hash), so a cached plan is only ever returned to someone
+ * whose credentials already worked for it. Concurrent requests share one fetch.
+ */
+const FRESH_TTL_MS = 60_000;
+const PAST_TTL_MS = 6 * 60 * 60_000;
+const CACHE_MAX_ENTRIES = 500;
+
+const dayCache = new Map<string, { expires: number; value: Promise<TimetableData> }>();
+
+function cacheKey(school: string, user: string, pass: string, dateStr: string): string {
+  const passHash = createHash('sha256').update(pass).digest('base64url');
+  return [school, user, passHash, dateStr].join('\u0000');
+}
+
+/** Test helper: drops all cached plans. */
+export function clearTimetableCache(): void {
+  dayCache.clear();
+}
+
+function fetchDayCached(
+  school: string,
+  user: string,
+  pass: string,
+  dateStr: string
+): Promise<TimetableData> {
+  const key = cacheKey(school, user, pass, dateStr);
+  const now = Date.now();
+  const hit = dayCache.get(key);
+  if (hit && hit.expires > now) return hit.value;
+  if (hit) dayCache.delete(key);
+
+  const value = fetchDayFromUpstream(school, user, pass, dateStr);
+  const ttl = dateStr < getTodayStr() ? PAST_TTL_MS : FRESH_TTL_MS;
+  dayCache.set(key, { expires: now + ttl, value });
+
+  // Never cache failures: the next request should try again.
+  value.catch(() => {
+    if (dayCache.get(key)?.value === value) dayCache.delete(key);
+  });
+
+  if (dayCache.size > CACHE_MAX_ENTRIES) {
+    const oldest = dayCache.keys().next().value;
+    if (oldest !== undefined) dayCache.delete(oldest);
+  }
+
+  return value;
 }
 
 export async function fetchStundenplan(
@@ -205,7 +302,9 @@ export async function fetchStundenplan(
   pass: string,
   dateStr?: string
 ): Promise<TimetableData> {
-  return fetchDayTimetable(school, user, pass, dateStr);
+  const targetDateStr = dateStr ?? getTodayStr();
+  if (isDemoSchool(school)) return getSampleDay(targetDateStr);
+  return fetchDayCached(school, user, pass, targetDateStr);
 }
 
 export async function fetchWeekStundenplan(
@@ -214,27 +313,22 @@ export async function fetchWeekStundenplan(
   pass: string,
   dateStr?: string
 ): Promise<TimetableWeekData> {
-  const anchorDate = dateStr ? parseDateStr(dateStr) : new Date();
+  const anchorDate = parseDateStr(dateStr ?? getTodayStr());
   const weekDates = getWeekDates(anchorDate);
   const weekStart = weekDates[0];
   const weekEnd = weekDates[weekDates.length - 1];
   const weekDateStrs = weekDates.map(formatDateStr);
 
   const settled = await Promise.allSettled(
-    weekDateStrs.map(date => fetchDayTimetable(school, user, pass, date))
+    weekDateStrs.map(date => fetchStundenplan(school, user, pass, date))
   );
 
   const failures = settled.filter(
     (result): result is PromiseRejectedResult => result.status === 'rejected'
   );
-  const authFailure = failures.find(result => result.reason?.message?.includes('Ungültig'));
+  const authFailure = failures.find(result => getTimetableErrorStatus(result.reason) === 401);
   if (authFailure) throw authFailure.reason;
-
-  if (failures.length > 0) {
-    const firstFailure = failures[0].reason;
-    const message = firstFailure instanceof Error ? firstFailure.message : String(firstFailure);
-    throw new Error(message || 'Stundenplanwoche konnte nicht vollständig geladen werden.');
-  }
+  if (failures.length > 0) throw failures[0].reason;
 
   const days: TimetableDayData[] = settled.map(result => {
     if (result.status === 'rejected') throw result.reason;
