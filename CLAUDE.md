@@ -20,7 +20,7 @@ Run a single test file: `bun run test src/lib/__tests__/date.test.ts` (or `-t "<
 
 ### Package manager gotcha
 
-Bun runs the scripts, but **`package-lock.json` is the only committed lockfile**. `bun.lock`/`bun.lockb` are gitignored, and `projectAudit.test.ts` fails if either is tracked. CI installs with `bun install --frozen-lockfile` (which reads `package-lock.json`) and the Dockerfile uses `npm ci`. So add or upgrade dependencies with `npm install <pkg>` to keep `package-lock.json` in sync. Node version is 20 (`.nvmrc`, Dockerfile).
+Bun runs the scripts, but **`package-lock.json` is the only committed lockfile**. `bun.lock`/`bun.lockb` are gitignored, and `projectAudit.test.ts` fails if either is tracked. CI installs with `bun install --frozen-lockfile` (which reads `package-lock.json`) and the Dockerfile uses `npm ci`. So add or upgrade dependencies with `npm install <pkg>` to keep `package-lock.json` in sync. Node version is 24 LTS (`.nvmrc`, Dockerfile).
 
 ## Stack
 
