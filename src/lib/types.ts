@@ -22,6 +22,8 @@ export interface TimetableData {
   availableRooms: string[];
   availableTeachers: string[];
   currentDateStr: string;
+  /** The plan's own timestamp (`zeitstempel`), e.g. `12.11.2026, 07:12`. */
+  updatedAt?: string;
   dayNotes?: string[];
   isWeekend?: boolean;
 }
@@ -45,6 +47,9 @@ export interface Favorite {
   mode: FilterMode;
   value: string;
 }
+
+/** The class, room or teacher whose plan is shown. */
+export type Selection = Favorite;
 
 export interface Credentials {
   school: string;

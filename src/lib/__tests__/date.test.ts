@@ -119,13 +119,19 @@ describe('formatWeekLabel', () => {
   it('formats start and end dates', () => {
     const start = new Date(2026, 5, 8);
     const end = new Date(2026, 5, 12);
-    expect(formatWeekLabel(start, end)).toBe('Woche vom 8.6 - 12.6');
+    expect(formatWeekLabel(start, end)).toBe('8.–12. Juni 2026');
   });
 
   it('handles cross-month weeks', () => {
     const start = new Date(2026, 5, 29);
     const end = new Date(2026, 6, 3);
-    expect(formatWeekLabel(start, end)).toBe('Woche vom 29.6 - 3.7');
+    expect(formatWeekLabel(start, end)).toBe('29. Juni – 3. Juli 2026');
+  });
+
+  it('handles cross-year weeks', () => {
+    const start = new Date(2025, 11, 29);
+    const end = new Date(2026, 0, 2);
+    expect(formatWeekLabel(start, end)).toBe('29. Dezember 2025 – 2. Januar 2026');
   });
 });
 

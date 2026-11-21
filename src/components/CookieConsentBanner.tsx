@@ -13,23 +13,17 @@ export default function CookieConsentBanner({
   onReject,
 }: CookieConsentBannerProps) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-4 pt-4 sm:px-6 sm:pb-6">
+    <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pt-3 sm:px-6 sm:pb-6">
       <div className="mx-auto w-full max-w-4xl">
-        <div className="panel border border-[var(--color-border)] bg-[color:var(--color-surface)] px-5 py-5 shadow-lg sm:px-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="panel border border-[var(--color-border)] bg-[color:var(--color-surface)] px-4 py-4 shadow-lg sm:px-6 sm:py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-                Cookies
-              </p>
-              <h2 className="mt-2 text-2xl leading-tight text-[var(--color-text)]">
+              <h2 className="text-lg leading-tight text-[var(--color-text)] sm:text-2xl">
                 Analyse-Cookies aktivieren?
               </h2>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-secondary)] sm:text-base">
-                Wir nutzen cookies, um die Website zu verbessern. Du kannst die
-                Analyse ablehnen.
-              </p>
-              <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
-                Mehr dazu in der{" "}
+              <p className="mt-2 text-sm leading-relaxed text-[var(--color-text-secondary)] sm:text-base">
+                Wir nutzen Cookies, um die Website zu verbessern. Du kannst die
+                Analyse ablehnen. Mehr dazu in der{" "}
                 <Link
                   href="/datenschutz"
                   className="font-semibold text-[var(--color-primary)] transition-colors hover:text-[var(--color-primary-hover)]"
@@ -40,12 +34,12 @@ export default function CookieConsentBanner({
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+            <div className="flex flex-row gap-3 lg:flex-col">
               <Button
                 type="button"
                 onClick={onReject}
                 variant="outline"
-                className="w-full rounded-full px-5 py-3 text-sm sm:w-auto"
+                className="flex-1 rounded-full px-4 py-3 text-sm sm:flex-none sm:px-5"
               >
                 Nur notwendige
               </Button>
@@ -53,7 +47,7 @@ export default function CookieConsentBanner({
                 type="button"
                 onClick={onAccept}
                 variant="primary"
-                className="w-full rounded-full px-5 py-3 text-sm sm:w-auto"
+                className="flex-1 rounded-full px-4 py-3 text-sm sm:flex-none sm:px-5"
               >
                 Analyse akzeptieren
               </Button>

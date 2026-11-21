@@ -19,25 +19,34 @@ const isInteractive = (el: Element | null) => {
   return true;
 };
 
+/**
+ * A short vibration when a control is tapped. Fires on `click`, not on
+ * `pointerdown`, so starting a scroll on top of a button doesn't buzz.
+ */
 export default function HapticsProvider() {
   useEffect(() => {
     if (!isMobilePointer()) return;
 
     const haptics = new WebHaptics();
+    // `click` events don't reliably say which pointer caused them (Safari
+    // fires plain MouseEvents), so remember the type of the last pointerdown.
+    let lastPointerType = '';
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!isMobilePointer()) return;
-      if (event.pointerType !== 'touch') return;
-      if (!isInteractive(event.target as Element | null)) return;
-      haptics.trigger([
-        { duration: 8 },
-      ], { intensity: 1 }
-      );
+      lastPointerType = event.pointerType;
     };
 
-    document.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    const handleClick = (event: MouseEvent) => {
+      if (lastPointerType !== 'touch') return;
+      if (!isInteractive(event.target as Element | null)) return;
+      haptics.trigger([{ duration: 8 }], { intensity: 1 });
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, { passive: true, capture: true });
+    document.addEventListener('click', handleClick, { capture: true });
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+      document.removeEventListener('click', handleClick, { capture: true });
       haptics.destroy();
     };
   }, []);

@@ -34,47 +34,55 @@ Next.js 16 (App Router), React 19.2, TypeScript, TanStack Query v5, Zod v4, Tail
 
 | Route | File | Purpose |
 |---|---|---|
-| `/` | `src/app/page.tsx` → `LandingPage` | Marketing landing page. Redirects to `/app` when the user is logged in or the PWA runs in standalone mode. |
-| `/app` | `src/app/app/page.tsx` → `ClientViewer` | The actual timetable app. Reads `?date=YYYYMMDD`, `?view=day\|week`, `?step=selection\|timetable`. |
+| `/` | `src/app/page.tsx` → `LandingPage` | Marketing landing page. Redirects to `/app` on the server when the session cookie is valid, and on the client when the PWA runs in standalone mode. |
+| `/app` | `src/app/app/page.tsx` → `ClientViewer` | The actual timetable app. Reads `?date=YYYYMMDD` and `?view=day\|week` (the old `?step=` is ignored). Reads the session cookie on the server and prefetches the visible day(s) (see "Client state"). |
 | `/datenschutz`, `/impressum` | `src/app/*/page.tsx` → `LegalDocument` | Legal pages |
 | `GET/POST/DELETE /api/auth` | `src/app/api/auth/route.ts` | Read session identity / log in (set cookie) / log out |
-| `POST /api/stundenplan` | `src/app/api/stundenplan/route.ts` | `{ date?, view? }` → `TimetableData` or `TimetableWeekData` |
-| `POST /api/subjects` | `src/app/api/subjects/route.ts` | `{ filterMode, selectedValue }` → subjects seen for that entity over the last 8 weekdays (fetched in batches of 3), used by the blacklist modal |
+| `POST /api/stundenplan` | `src/app/api/stundenplan/route.ts` | `{ date?, view? }` → `TimetableData` or `TimetableWeekData`. The app only asks for single days. |
+| `GET /api/history` | `src/app/api/history/route.ts` | Classes/rooms/teachers plus subjects per entity over the last 10 school days (`buildHistory` in `src/lib/history.ts`). Feeds the picker and the "Fächer ausblenden" dialog |
 | `GET /api/public/timetable` | `src/app/api/public/timetable/route.ts` | Public JSON API using HTTP Basic Auth. Documented in `docs/public-timetable-api.md` |
 
 ### Authentication
 
 Credentials (`school`, `user`, `pass`) never live in the browser:
 
-- `POST /api/auth` encrypts them with AES-256-GCM (`src/lib/server/authSession.ts`) into the httpOnly cookie `timetablex_session` (30 days). The key comes from the `TIMETABLEX_AUTH_SECRET` env var (falls back to `AUTH_SECRET` / `NEXTAUTH_SECRET`, then an insecure dev default). Login does **not** validate the credentials against stundenplan24; a bad password only surfaces on the first data fetch.
-- Cookie-authenticated API routes call `getAuthCredentials(request)` and return 401 if it is `null`. The client sends only `{ date, view }` etc., never credentials.
-- The client only ever sees `AuthIdentity` (`{ school, user }`), via `useAuth`.
-- `src/lib/authMigration.ts` exchanges old `localStorage['school_creds']` entries (from before cookie sessions existed) for a session cookie once, then deletes them.
+- `POST /api/auth` first checks the credentials by fetching today's plan (401 → rejected with 401, 404 counts as valid, unreachable → 502; the demo school skips the check). It then encrypts them with AES-256-GCM (`src/lib/server/authSession.ts`) into the httpOnly cookie `timetablex_session`. The key comes from the `TIMETABLEX_AUTH_SECRET` env var (falls back to `AUTH_SECRET` / `NEXTAUTH_SECRET`, then an insecure dev default).
+- The cookie lasts 90 days and **slides**: authenticated API responses (`/api/stundenplan`, `/api/history`, `GET /api/auth`) re-set it via `refreshAuthCookie`.
+- Cookie-authenticated API routes call `getAuthCredentials(request)` and return 401 if it is `null`. The client sends only `{ date }` etc., never credentials.
+- `/app` reads the cookie in the server component and passes `AuthIdentity` (`{ school, user }`) to `ClientViewer` → `useAuth(initialIdentity)`. The client never sees the password and makes no request to find out whether it is logged in.
+- `src/lib/authMigration.ts` exchanges old `localStorage['school_creds']` entries (from before cookie sessions existed) for a session cookie once. It deletes them when the server accepts or rejects them (400/401), and keeps them when stundenplan24 was unreachable.
 - The public API instead parses `Authorization: Basic base64("SCHULNUMMER.BENUTZER:PASS")` (`src/lib/server/publicAuth.ts`). The school number is split off at the first dot.
 
-`projectAudit.test.ts` enforces this. It fails if `useAuth.ts` touches `localStorage` or `school_creds`, or if `useTimetable`/`useAvailableSubjects` send `pass` or `...creds` in a request body.
+`projectAudit.test.ts` enforces this. It fails if `useAuth.ts` touches `localStorage` or `school_creds`, or if `useTimetable`/`useHistory` send `pass` or `...creds` in a request body. (Logout clears local preferences in `ClientViewer`, not in `useAuth`, for that reason.)
 
 ### Data fetching (`src/lib/stundenplan.ts`)
 
-- Fetches `https://www.stundenplan24.de/{school}/wplan/wdatenk/WPlanKl_{YYYYMMDD}.xml` with Basic Auth and `cache: 'no-store'`, then parses it with `xml2js`. Change flags (`roomChanged`, `teacherChanged`, …) come from the XML `*Ae` attributes. `dayNotes` come from `ZusatzInfo` and `FreieTexte`.
-- HTTP 401 → throws `'Ungültiger Benutzername oder Passwort.'`. Any other non-OK status (no plan published) → returns an **empty day** with `isWeekend` set from the date. Network failure → throws `'Verbindung zum Server fehlgeschlagen.'`
-- `fetchWeekStundenplan` fetches Mon–Fri in parallel with `Promise.allSettled`. **Any** failed day fails the whole week, with the auth error taking priority (covered by `weekFailure.test.ts`). It merges `available{Classes,Rooms,Teachers}` across the days.
-- **Gotcha:** API routes choose HTTP status codes by substring-matching these German messages (`'Ungültig'` → 401, `'Verbindung'` → 502). Changing the wording breaks the status mapping.
+- Fetches `https://www.stundenplan24.de/{school}/wplan/wdatenk/WPlanKl_{YYYYMMDD}.xml` with Basic Auth, `cache: 'no-store'` and a 10 s timeout, then parses it with `xml2js`. `date` is the plan's `DatumPlan`, `updatedAt` its `zeitstempel` (the public API still returns the old combined `"<date> (Aktualisiert: <updatedAt>)"` string). Change flags (`roomChanged`, `teacherChanged`, …) come **only** from the XML `*Ae` attributes. `dayNotes` come from `ZusatzInfo` and `FreieTexte`.
+- HTTP 401 → `TimetableAuthError`. HTTP **404** (no plan published) → an **empty day** with `isWeekend` set from the date. Any other non-OK status, a network failure or a timeout → `TimetableUnavailableError`. A server error must never look like a day off.
+- `getTimetableErrorStatus(error)` maps errors to 401/502/500, by class first and by message substring (`'Ungültig'`, `'Verbindung'`) as a fallback. All routes use it.
+- Plans are cached **in memory on the server** (`fetchDayCached`): 60 s for today and future days, 6 h for past days, keyed by school + user + a SHA-256 of the password + date, max 500 entries. Concurrent requests share one upstream fetch; failures are never cached. Tests call `clearTimetableCache()`.
+- `fetchWeekStundenplan` (public API only) fetches Mon–Fri in parallel. **Any** failed day fails the whole week, with the auth error taking priority (`weekFailure.test.ts`).
+- "Today" is always computed in `Europe/Berlin` (`getSchoolClock`/`getTodayStr` in `src/lib/date.ts`). The Docker image runs in UTC, so never use `new Date()` directly for calendar days.
 
 ### Client state (`/app`)
 
-`ClientViewer` (`src/components/ClientViewer.tsx`) orchestrates everything. It is a two-step flow (`step=selection` → `SelectionMenu`, `step=timetable` → `TimetableTable` or `WeekTimetableView`), and all navigation goes through `router.push('/app?...')`. Day navigation skips weekends; week navigation jumps ±7 days. Cmd/Ctrl+K opens `CommandPalette`.
+`ClientViewer` (`src/components/ClientViewer.tsx`) shows `LoginForm` without a session and otherwise `TimetableApp`: one screen with `TimetableHeader` (selection button, favorite star, refresh, "Fächer ausblenden", Tag/Woche, ‹ Heute ›), `FavoritesBar`, and the day (`DayContent` → `LessonList`) or week (`WeekTimetableView`). The selection is changed in `CommandPalette` (lists everything when the search is empty). First-time users get `SelectionPrompt`.
 
-| Hook | Responsibility | Persistence |
+- **Loading:** `/app/page.tsx` prefetches the visible day(s) into a server `QueryClient` and passes them through `HydrationBoundary`. A Suspense fallback (`AppSkeleton`) streams first, and after `PREFETCH_TIMEOUT_MS` (2.5 s) the page is sent without data and the browser fetches. Query keys come from `src/lib/timetableQuery.ts`, shared by server and client: keep them identical.
+- **Per-day queries:** every day is its own query (`['day', school, user, YYYYMMDD]`); the week view is five of them (`useTimetableDays`), so day and week share the cache and one bad day doesn't hide the others. Past days use `staleTime: Infinity`; today/future days 60 s and refetch on window focus (a resumed PWA). The day view prefetches the previous/next school day.
+- **Navigation** updates the URL with `window.history.replaceState(null, …)`, which Next syncs into `useSearchParams` without a server round trip (pass `null` as state, or Next skips the sync). Without `?date`, the app shows `getDefaultDateStr()`: today, or the next school day on weekends and from 16:00. After 2 h in the background it jumps back to that day. The week view on a weekend shows the coming week (`getSchoolWeekStart`). Day navigation skips weekends.
+- **Never auto-select.** A selection that isn't in the current plan stays and shows "nicht im Plan" (`describeDay` in `src/lib/dayState.ts` decides every empty state).
+- **Shortcuts:** Cmd/Ctrl+K or `/` (picker), ←/→, `t` (today), `d`/`w` (view), `r` (refresh). Swipe left/right changes the day on touch screens (`useSwipe`). Dialogs close with the back button (`useCloseOnBack`).
+- **Logout** (footer, with confirmation) also clears the stored preferences, the stored history and the query cache.
+
+| Module | Responsibility | Persistence |
 |---|---|---|
-| `useAuth` | Session identity, login/logout via `/api/auth`, legacy migration | httpOnly cookie |
-| `useTimetable` | TanStack Query fetch of `/api/stundenplan`; filter mode/value; computes `filteredEntries` (day) / `filteredDays` (week); auto-selects the first available value unless the day has no options (weekend/holiday keeps the selection) | `localStorage` `filterMode`, `filterValue` |
-| `useBlacklist` | Per-entity hidden subjects | `localStorage` `timetable_blacklist` = `Record<entity, subject[]>` |
-| `useFavorites` | Up to 4 `{ mode, value }` favorites | `localStorage` `favorites` |
-| `useExtendedEntities` | Fetches the previous 2 weeks so the command palette can find classes/rooms/teachers that don't appear on the current plan | `localStorage` `extended_entities_{school}` (24h TTL) |
-| `useAvailableSubjects` | `/api/subjects` for the blacklist modal | Query cache (30 min) |
+| `useAuth(initialIdentity)` | Login/logout via `/api/auth`, legacy migration | httpOnly cookie |
+| `useTimetableDays` / `usePrefetchNeighbours` (`hooks/useTimetable.ts`) | Per-day `/api/stundenplan` queries | Query cache |
+| `src/lib/preferences.ts` + `usePreferences` | Selection, up to 4 favorites, hidden subjects per selected value. External store for `useSyncExternalStore`: `null` during SSR/hydration, so the markup matches | `localStorage` `filterMode`, `filterValue`, `favorites`, `timetable_blacklist` (same keys as before) |
+| `useHistory` | `/api/history`, only fetched when the picker/dialog opens, no selection exists yet, or 2.5 s after the plan loaded | `localStorage` `timetable_history_{school}` (24h) |
 
-`filterEntries` (`src/lib/filterEntries.ts`) is a pure, server-safe function shared by `useTimetable` and the public API. Keep it out of `'use client'` modules. `useTimetable.ts` re-exports it, and also exports `computeIsSelectionAvailable` for tests.
+`filterEntries` (`src/lib/filterEntries.ts`) and `src/lib/dayState.ts` are pure, server-safe functions shared with the public API. Keep them out of `'use client'` modules.
 
 `src/app/providers.tsx` sets up the `QueryClient` (5 min `staleTime`, no refetch on focus), `HapticsProvider` (vibration on pointerdown via `web-haptics`), the cookie consent banner, and starts PostHog once consent is `accepted`.
 
@@ -116,15 +124,16 @@ The manifest is `src/app/manifest.ts` (`start_url: '/app'`). There is **no servi
 
 ### Styling
 
-Tailwind v4 plus a design token system in `src/app/globals.css`. All colors, radii, shadows and transitions are CSS variables on `:root` (`--color-primary`, `--color-surface`, …), exposed to Tailwind via `@theme inline`. Dark mode overrides live under `@media (prefers-color-scheme: dark)`. Fonts are Atkinson Hyperlegible (body) and Fraunces (display). Prefer the variables over hardcoded values. The landing page uses framer-motion through `LazyMotion` + `MotionConfig reducedMotion="user"`, with shared variants in `src/lib/motionVariants.ts` and fake data in `src/lib/mockTimetableData.ts`.
+Tailwind v4 plus a design token system in `src/app/globals.css`. All colors, radii, shadows and transitions are CSS variables on `:root` (`--color-primary`, `--color-surface`, …), exposed to Tailwind via `@theme inline`. Dark mode overrides live under `@media (prefers-color-scheme: dark)`. Fonts are Atkinson Hyperlegible (body) and Fraunces (display), **self-hosted with `next/font/google`** in `layout.tsx` (CSS vars `--font-atkinson`/`--font-fraunces` on `<html>`). Never load fonts from `fonts.googleapis.com` in the browser: that sends visitors' IPs to Google without consent, and `projectAudit.test.ts` fails on it. Lessons use a container query (`.lesson` in `globals.css`): two lines in narrow containers (phones, week cards), one row when wide. `BackgroundField` is static on purpose (no pointer tracking or infinite animations). Prefer the variables over hardcoded values. The landing page uses framer-motion through `LazyMotion` + `MotionConfig reducedMotion="user"`, with shared variants in `src/lib/motionVariants.ts` and fake data in `src/lib/mockTimetableData.ts`.
 
 ## Tests
 
 Tests live in `src/lib/__tests__/` and run under Vitest (`vitest.config.ts`: `node` environment, tsconfig path aliases, `vitest.setup.ts`). Files that need a DOM opt in with `// @vitest-environment jsdom` (`trackingConsent`, `authMigration`). `vitest.setup.ts` polyfills `localStorage`/`sessionStorage` for jsdom, because Node 26+ defines a broken global that stops jsdom from installing its own.
 
-- Pure units: `date`, `filterEntries`, `isSelectionAvailable`, `authSession`, `publicAuth`, `trackingConsent`, `authMigration` (mocks `fetch`)
-- Route/integration: `publicTimetableRoute` (calls the route handler directly using demo credentials), `weekFailure` (mocks `fetch` to check week-level error propagation)
-- `projectAudit`: static checks on the repo itself (npm-only lockfile, Next version pin, postcss override, `allowedDevOrigins`, no plaintext credentials client-side, no service worker). If you intentionally change one of these, update the test in the same change.
+- Pure units: `date`, `schoolDates` (Berlin time, default day, school weeks), `filterEntries`, `isSelectionAvailable`, `dayState`, `lessonStatus`, `history`, `authSession`, `publicAuth`, `trackingConsent`, `authMigration` (mocks `fetch`), `preferences` (jsdom)
+- Route/integration: `publicTimetableRoute` (calls the route handler directly using demo credentials), `authRoute` (login check, status mapping, cookie renewal), `upstream` (404 vs 5xx, parsing, server cache), `weekFailure` (week-level error propagation)
+- `clientViewer.test.tsx` (jsdom): mounts the real `ClientViewer` with a stubbed `fetch` and mocked `next/navigation`, drives the main flows and checks SSR → hydration has no mismatches.
+- `projectAudit`: static checks on the repo itself (npm-only lockfile, Next version pin, postcss override, `allowedDevOrigins`, no plaintext credentials client-side, no service worker, no Google Fonts request). If you intentionally change one of these, update the test in the same change.
 
 ## CI & deployment
 

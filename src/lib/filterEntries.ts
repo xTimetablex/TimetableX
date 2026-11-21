@@ -7,6 +7,7 @@ export function filterEntries(
   blacklist: string[]
 ): TimetableEntry[] {
   if (!selectedValue) return [];
+  const hidden = new Set(blacklist);
 
   const filtered = entries.filter(e => {
     let isMatch = false;
@@ -15,7 +16,7 @@ export function filterEntries(
     else if (filterMode === 'teacher') isMatch = e.teacher === selectedValue;
 
     if (!isMatch) return false;
-    if (blacklist.includes(e.subject)) return false;
+    if (hidden.has(e.subject)) return false;
     return true;
   });
 

@@ -1,149 +1,78 @@
 'use client';
 
-import type { WheelEvent } from 'react';
-import { AlertCircle, CalendarDays, CheckCircle2 } from 'lucide-react';
-import TimetableTable from './TimetableTable';
-import { TimetableEntry } from '@/lib/types';
+import { useEffect, useRef } from 'react';
+import { describeDay } from '@/lib/dayState';
+import { formatShortDate, formatWeekday, parseDateStr } from '@/lib/date';
+import DayContent, { DayContentProps } from './DayContent';
 
-interface WeekTimetableDay {
-  date: string;
-  entries: TimetableEntry[];
-  filteredEntries: TimetableEntry[];
-  dayNotes?: string[];
-  isWeekend?: boolean;
-  isSelectionAvailable?: boolean;
+type WeekTimetableViewProps = Omit<DayContentProps, 'day' | 'compact'> & {
+  days: DayContentProps['day'][];
+  /** Opens a day in the day view. */
+  onOpenDay: (dateStr: string) => void;
+};
+
+function summary(props: WeekTimetableViewProps, day: DayContentProps['day']): string {
+  if (!day.data) return day.error ? 'Fehler' : 'Lädt…';
+  const state = describeDay(day.data, props.selection, props.blacklist, props.todayStr);
+  if (state.kind === 'lessons') {
+    return state.entries.length === 1 ? '1 Stunde' : `${state.entries.length} Stunden`;
+  }
+  if (state.kind === 'no-plan') return state.future ? 'Noch kein Plan' : 'Kein Plan';
+  return 'Keine Stunden';
 }
 
-interface WeekTimetableViewProps {
-  days: WeekTimetableDay[];
-  showClassColumn: boolean;
-  selectionLabel?: string;
-}
+/**
+ * Monday–Friday side by side. On large screens all five fit as a grid; below
+ * that the days scroll horizontally (snapping per day), starting at today.
+ */
+export default function WeekTimetableView(props: WeekTimetableViewProps) {
+  const { days, todayStr, onOpenDay } = props;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const weekKey = days.map(day => day.dateStr).join();
 
-function handleWheel(event: WheelEvent<HTMLDivElement>) {
-  const el = event.currentTarget;
-  const horizontalIntent = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
+  // Start on today's card when the week doesn't fit on screen.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const today = scroller?.querySelector<HTMLElement>('[aria-current="date"]');
+    if (!scroller || !today || scroller.scrollWidth <= scroller.clientWidth) return;
+    scroller.scrollTo({ left: today.offsetLeft - parseFloat(getComputedStyle(scroller).paddingLeft), behavior: 'instant' });
+  }, [weekKey]);
 
-  if (!horizontalIntent) return;
-
-  const nextScrollLeft = el.scrollLeft + (event.shiftKey ? event.deltaY : event.deltaX || event.deltaY);
-  const maxScrollLeft = el.scrollWidth - el.clientWidth;
-  const canScroll = maxScrollLeft > 0 && (nextScrollLeft > 0 || nextScrollLeft < maxScrollLeft);
-
-  if (!canScroll) return;
-
-  event.preventDefault();
-  el.scrollLeft = Math.max(0, Math.min(maxScrollLeft, nextScrollLeft));
-}
-
-export default function WeekTimetableView({ days, showClassColumn, selectionLabel }: WeekTimetableViewProps) {
   return (
-    <div
-      className="overflow-x-auto overflow-y-visible p-4 sm:p-5 snap-x snap-mandatory scroll-smooth lg:snap-none lg:scroll-auto"
-      style={{
-        overscrollBehaviorX: 'none',
-        overscrollBehaviorY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        scrollPaddingInline: '1rem',
-      }}
-      onWheel={handleWheel}
-    >
-      <div className="flex flex-nowrap gap-4 min-w-max pb-2">
-        {days.map((day) => {
-          const hasNotes = !!day.dayNotes?.length;
-          const hasEntries = day.filteredEntries.length > 0;
+    <div className="week-scroller" ref={scrollerRef}>
+      <div className="week-grid">
+        {days.map(day => {
+          const date = parseDateStr(day.dateStr);
+          const isToday = day.dateStr === todayStr;
 
           return (
             <section
-            key={day.date}
-            className="week-day-card panel-muted overflow-hidden shrink-0 snap-start lg:snap-none"
-            style={{
-              width: 'min(82vw, 24rem)',
-              minWidth: '18rem',
-              height: 'auto',
-              maxHeight: 'none',
-              scrollSnapStop: 'always',
-            }}
-          >
-              <div
-                className="flex items-start justify-between gap-4 px-4 py-4 sm:px-5 border-b"
-                style={{ borderColor: 'var(--color-border-subtle)' }}
+              key={day.dateStr}
+              className="week-day panel-muted"
+              aria-current={isToday ? 'date' : undefined}
+              aria-label={`${formatWeekday(date)}, ${formatShortDate(date)}`}
+            >
+              <button
+                type="button"
+                className="week-day-header"
+                onClick={() => onOpenDay(day.dateStr)}
+                aria-label={`${formatWeekday(date)} in der Tagesansicht öffnen`}
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <CalendarDays
-                      className="size-4 flex-shrink-0"
-                      strokeWidth={2}
-                      style={{ color: 'var(--color-primary)' }}
-                    />
-                    <p
-                      className="text-sm font-semibold uppercase tracking-wide"
-                      style={{ color: 'var(--color-text-muted)' }}
-                    >
-                      {day.date}
-                    </p>
-                  </div>
-                  <p className="text-base font-semibold" style={{ color: 'var(--color-text)' }}>
-                    {hasEntries ? `${day.filteredEntries.length} Einträge` : 'Keine Einträge'}
-                  </p>
-                </div>
+                <span className="flex items-center gap-2">
+                  <span className="text-base font-semibold" style={{ color: 'var(--color-text)' }}>
+                    {formatWeekday(date)}
+                  </span>
+                  <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                    {formatShortDate(date)}
+                  </span>
+                  {isToday && <span className="today-badge">Heute</span>}
+                </span>
+                <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  {summary(props, day)}
+                </span>
+              </button>
 
-              </div>
-
-              <div className="overflow-hidden">
-                {hasEntries ? (
-                  <TimetableTable
-                    entries={day.filteredEntries}
-                    showClassColumn={showClassColumn}
-                    compact
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 px-6 gap-3 text-center">
-                    <div
-                      className="flex items-center justify-center"
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        background: 'var(--color-primary-light)',
-                        color: 'var(--color-primary)',
-                      }}
-                    >
-                      <CheckCircle2 className="size-6" strokeWidth={1.75} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-                        Kein Unterricht für diese Auswahl
-                      </p>
-                      <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                        {!day.isSelectionAvailable && selectionLabel
-                          ? `${selectionLabel} ist für diesen Tag nicht im Plan.`
-                          : 'Dieser Tag ist leer oder alle passenden Einträge wurden ausgefiltert.'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {hasNotes && (
-                <div className="day-notes">
-                  <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--color-warning)' }}>
-                    <AlertCircle className="size-4 flex-shrink-0" strokeWidth={2} />
-                    <span className="text-sm font-semibold">Hinweise</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {day.dayNotes!.map((note, noteIndex) => (
-                      <p
-                        key={noteIndex}
-                        className="text-sm leading-relaxed"
-                        style={{ color: 'var(--color-text)' }}
-                      >
-                        {note}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <DayContent {...props} day={day} compact />
             </section>
           );
         })}

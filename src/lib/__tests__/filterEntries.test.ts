@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { filterEntries } from '../hooks/useTimetable';
+import { filterEntries } from '../filterEntries';
 import { TimetableEntry } from '../types';
 
 const entries: TimetableEntry[] = [

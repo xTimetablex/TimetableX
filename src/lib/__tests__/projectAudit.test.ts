@@ -45,14 +45,21 @@ describe('project audit regressions', () => {
     expect(useAuth).toContain("fetch('/api/auth'");
   });
 
-  it('does not send credentials from timetable or subject browser requests', () => {
+  it('does not send credentials from timetable or history browser requests', () => {
     const useTimetable = read('src/lib/hooks/useTimetable.ts');
-    const useAvailableSubjects = read('src/lib/hooks/useAvailableSubjects.ts');
+    const useHistory = read('src/lib/hooks/useHistory.ts');
 
-    expect(useTimetable).not.toContain('...creds');
-    expect(useAvailableSubjects).not.toContain('...creds');
-    expect(useTimetable).not.toMatch(/body:\s*JSON\.stringify\([\s\S]*pass/);
-    expect(useAvailableSubjects).not.toMatch(/body:\s*JSON\.stringify\([\s\S]*pass/);
+    for (const source of [useTimetable, useHistory]) {
+      expect(source).not.toContain('...creds');
+      expect(source).not.toMatch(/body:\s*JSON\.stringify\([\s\S]*pass/);
+    }
+  });
+
+  it('self-hosts fonts instead of loading them from Google in the browser', () => {
+    // A browser request to Google Fonts sends the visitor's IP to Google
+    // without consent (LG München I, 3 O 17493/20). next/font self-hosts.
+    expect(read('src/app/globals.css')).not.toContain('fonts.googleapis.com');
+    expect(read('src/app/layout.tsx')).toContain("from \"next/font/google\"");
   });
 
   it('only loads PostHog lazily, after tracking consent', () => {

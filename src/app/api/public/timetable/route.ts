@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { parseGermanDateStr } from '@/lib/date';
 import { filterEntries } from '@/lib/filterEntries';
 import { parseBasicAuth, unauthorizedResponse } from '@/lib/server/publicAuth';
-import { fetchStundenplan, fetchWeekStundenplan } from '@/lib/stundenplan';
+import { fetchStundenplan, fetchWeekStundenplan, getTimetableErrorStatus } from '@/lib/stundenplan';
 import { FilterMode, TimetableData } from '@/lib/types';
 
 const QuerySchema = z.object({
@@ -23,8 +23,10 @@ function shapeDay(day: TimetableData, filter: Filter | null) {
     : day.entries.toSorted((a, b) => (parseInt(a.hour) || 0) - (parseInt(b.hour) || 0));
 
   return {
-    date: day.date,
+    // Kept in its original "<DatumPlan> (Aktualisiert: <zeitstempel>)" shape for API clients.
+    date: day.updatedAt ? `${day.date} (Aktualisiert: ${day.updatedAt})` : day.date,
     dateStr: day.currentDateStr,
+    ...(day.updatedAt ? { updatedAt: day.updatedAt } : {}),
     entries,
     ...(day.dayNotes ? { dayNotes: day.dayNotes } : {}),
     ...(day.isWeekend ? { isWeekend: day.isWeekend } : {}),
@@ -94,15 +96,10 @@ export async function GET(request: Request) {
       ...filterField,
       ...shapeDay(dayData, filter),
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    if (message.includes('Ungültig')) {
-      return NextResponse.json({ error: message }, { status: 401 });
-    }
-    Sentry.captureException(e);
-    if (message.includes('Verbindung')) {
-      return NextResponse.json({ error: message }, { status: 502 });
-    }
-    return NextResponse.json({ error: message || 'Interner Serverfehler.' }, { status: 500 });
+    const status = getTimetableErrorStatus(e);
+    if (status !== 401) Sentry.captureException(e);
+    return NextResponse.json({ error: message || 'Interner Serverfehler.' }, { status });
   }
 }

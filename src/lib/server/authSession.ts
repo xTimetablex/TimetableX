@@ -1,9 +1,13 @@
 import crypto from 'crypto';
+import type { NextResponse } from 'next/server';
 import { Credentials } from '@/lib/types';
 
 export const AUTH_COOKIE_NAME = 'timetablex_session';
 
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+// Sliding expiry: every authenticated API call renews the cookie (see
+// refreshAuthCookie), so only 90 days without opening the app log you out.
+// Long enough to survive the six-week summer holidays.
+const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90;
 
 export const authCookieOptions = {
   httpOnly: true,
@@ -65,14 +69,27 @@ export function readAuthSession(value: string | undefined): Credentials | null {
   return null;
 }
 
-export function getAuthCredentials(request: Request): Credentials | null {
+function getAuthCookieValue(request: Request): string | undefined {
   const cookie = request.headers
     .get('cookie')
     ?.split(';')
     .map(part => part.trim())
     .find(part => part.startsWith(`${AUTH_COOKIE_NAME}=`));
 
-  return readAuthSession(cookie?.slice(AUTH_COOKIE_NAME.length + 1));
+  return cookie?.slice(AUTH_COOKIE_NAME.length + 1);
+}
+
+export function getAuthCredentials(request: Request): Credentials | null {
+  return readAuthSession(getAuthCookieValue(request));
+}
+
+/** Re-sets the (valid) session cookie on a response to restart its max age. */
+export function refreshAuthCookie(request: Request, response: NextResponse): NextResponse {
+  const value = getAuthCookieValue(request);
+  if (value && readAuthSession(value)) {
+    response.cookies.set(AUTH_COOKIE_NAME, value, authCookieOptions);
+  }
+  return response;
 }
 
 export function getPublicIdentity(credentials: Credentials) {
